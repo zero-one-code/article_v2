@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="up arrow">
-  <defs>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="1.2" stdDeviation="1.4" flood-color="#b7b7b7" flood-opacity="0.65"/>
-    </filter>
-  </defs>
-  <polygon points="18,95 78,35 78,60 104,60 104,18 62,18 62,42 4,100" fill="#ffffff" opacity="0.92" filter="url(#shadow)"/>
-  <polygon points="17,100 82,35 82,62 108,62 108,10 56,10 56,36 -4,96" fill="#d6ccff" stroke="#560aef" stroke-opacity="0.22" stroke-width="4" opacity="0.68"/>
-</svg>
