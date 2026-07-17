@@ -1,18 +1,14 @@
 const designWidth = 1920;
-const designHeight = 56000;
+const designHeight = 72000;
 const dotSpacing = 20.95;
 const dotSpacingY = 20.88;
 const dotSize = 12;
 
-const CONTEXT_START = 0;
-const EFFECTIVENESS_START = 3210;
-const SAFETY_START = 11710;
-
 const sectionTops = {
     intro: 0,
-    effectiveness: EFFECTIVENESS_START,
-    safety: SAFETY_START,
-    closing: 49430
+    effectiveness: 7150,
+    safety: 22250,
+    closing: 36900
 };
 
 const sections = {
@@ -23,24 +19,32 @@ const sections = {
 };
 
 const sectionLabels = {
-    intro: "Introduction",
+    intro: "Intro",
     effectiveness: "Effectiveness",
     safety: "Safety",
-    closing: "Thank you"
+    closing: "Closing"
 };
 
 const navSections = [
     {
+        key: "disease",
+        label: "Disease burden",
+        getTop: () => getSceneNavigationTop(".disease-scrolly", 0)
+    },
+    {
         key: "effectiveness",
         label: "Effectiveness",
-        getTop: () => getSceneNavigationTop(".effectiveness-scrolly", 520),
-        getActiveTop: () => EFFECTIVENESS_START
+        getTop: () => getSceneNavigationTop(".effectiveness-scrolly", 520)
     },
     {
         key: "safety",
         label: "Safety",
-        getTop: () => getSafetyNavigationTop(),
-        getActiveTop: () => SAFETY_START
+        getTop: () => getSafetyNavigationTop()
+    },
+    {
+        key: "decision",
+        label: "Decision",
+        getTop: () => getDecisionNavigationTop()
     }
 ];
 
@@ -55,24 +59,24 @@ function getSceneNavigationTop(selector, visibleOffset) {
 }
 
 function getSafetyNavigationTop() {
-    const introDef = typeof SAFETY_SCENE_DEFS !== "undefined"
+    const safetyIntro = typeof SAFETY_SCENE_DEFS !== "undefined"
         ? SAFETY_SCENE_DEFS.find((def) => def.id === "safety-intro")
         : null;
-    if (introDef && Number.isFinite(introDef._top)) {
-        const revealOffset = Math.min(900, Math.max(1, Number(introDef._pinDuration) || 3000) * 0.30);
-        return introDef._top + revealOffset;
+    if (safetyIntro && Number.isFinite(safetyIntro._top)) {
+        const fullyVisibleOffset = Math.max(900, (Number(safetyIntro.revealDist) || 1500) * 0.60);
+        return safetyIntro._top + fullyVisibleOffset;
     }
-    return SAFETY_PIN_BASE + 900;
+    return Number(sectionTops.safety) || SAFETY_PIN_BASE;
 }
 
-function getThankYouNavigationTop() {
-    const messageDef = typeof SAFETY_SCENE_DEFS !== "undefined"
-        ? SAFETY_SCENE_DEFS.find((def) => def.kind === "message")
+function getDecisionNavigationTop() {
+    const decisionDef = typeof SAFETY_SCENE_DEFS !== "undefined"
+        ? SAFETY_SCENE_DEFS.find((def) => def.id === "decision-intro")
         : null;
-    if (messageDef && Number.isFinite(messageDef._top)) {
-        return messageDef._top;
+    if (decisionDef && Number.isFinite(decisionDef._top)) {
+        return decisionDef._top + 920;
     }
-    return Number(sectionTops.closing);
+    return Number(sectionTops.closing) + 1500;
 }
 
 function getNavSectionTop(section) {
@@ -82,14 +86,11 @@ function getNavSectionTop(section) {
     return Number(section && section.top) || 0;
 }
 
-function getNavSectionActiveTop(section) {
-    if (section && typeof section.getActiveTop === "function") {
-        return Number(section.getActiveTop()) || 0;
-    }
-    return getNavSectionTop(section);
-}
-
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const MOBILE_MIN_RENDERED_FONT_SIZE = 10;
+const MOBILE_CLOSING_MESSAGE_FONT_SIZE = 13;
+const MOBILE_SOURCE_TEXT_FONT_SIZE = 12;
+const MOBILE_SOURCE_TITLE_FONT_SIZE = 13;
 
 function isMobileLayout() {
     return window.matchMedia("(max-width: 900px), (pointer: coarse) and (max-width: 1180px)").matches;
@@ -150,9 +151,6 @@ function updateScrollDrivenScenes(currentDesignY) {
     updateRiskScrolly(currentDesignY);
     updateVaccinationScrolly(currentDesignY);
     updateEffectivenessScrolly(currentDesignY);
-    updateReliabilityScrolly(currentDesignY);
-    updateUncertaintyTypesScrolly(currentDesignY);
-    updateEffectivenessRangeScrolly(currentDesignY);
     updatePinnedPages(currentDesignY);
 }
 
@@ -278,7 +276,141 @@ function updateScale() {
     document.documentElement.style.setProperty("--pin-offset-y", `${pinOffsetY.toFixed(2)}px`);
     document.documentElement.style.setProperty("--viewport-width", `${viewportWidth.toFixed(2)}px`);
     document.documentElement.style.setProperty("--viewport-height", `${viewportHeight.toFixed(2)}px`);
+
     document.documentElement.classList.toggle("is-compact", compact);
+
+    window.requestAnimationFrame(() => {
+        applyMobileLegendSizing(compact);
+        applyMobileFontFloor(compact);
+    });
+}
+
+function getCumulativeTransformScale(element) {
+    let scale = 1;
+    let node = element;
+
+    while (node && node.nodeType === 1) {
+        const transform = window.getComputedStyle(node).transform;
+
+        if (transform && transform !== "none") {
+            const matrix2d = transform.match(/^matrix\(([^)]+)\)$/);
+            const matrix3d = transform.match(/^matrix3d\(([^)]+)\)$/);
+
+            if (matrix2d) {
+                const values = matrix2d[1].split(",").map(Number);
+                const localScale = Math.hypot(values[0], values[1]);
+                if (Number.isFinite(localScale) && localScale > 0) {
+                    scale *= localScale;
+                }
+            } else if (matrix3d) {
+                const values = matrix3d[1].split(",").map(Number);
+                const localScale = Math.hypot(values[0], values[1], values[2]);
+                if (Number.isFinite(localScale) && localScale > 0) {
+                    scale *= localScale;
+                }
+            }
+        }
+
+        node = node.parentElement;
+    }
+
+    return Math.max(0.01, scale);
+}
+
+function hasDirectReadableText(element) {
+    return Array.from(element.childNodes).some((node) => (
+        node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0
+    ));
+}
+
+function applyMobileLegendSizing(compact) {
+    const legends = document.querySelectorAll(".legend");
+
+    legends.forEach((legend) => {
+        legend.style.removeProperty("font-size");
+        legend.style.removeProperty("line-height");
+        legend.style.removeProperty("column-gap");
+        legend.style.removeProperty("row-gap");
+        legend.style.removeProperty("padding-left");
+        legend.style.removeProperty("padding-right");
+        legend.style.removeProperty("--legend-dot-size");
+        legend.style.removeProperty("--legend-icon-gap");
+        legend.style.removeProperty("--legend-item-gap");
+        legend.style.removeProperty("--legend-row-gap");
+        legend.style.removeProperty("--legend-swatch-width");
+        legend.style.removeProperty("--legend-swatch-height");
+    });
+
+    if (!compact) {
+        return;
+    }
+
+    legends.forEach((legend) => {
+        const renderedScale = Math.max(0.01, getCumulativeTransformScale(legend));
+        const toDesignPixels = (physicalPixels) => `${(physicalPixels / renderedScale).toFixed(3)}px`;
+
+        legend.style.setProperty("font-size", toDesignPixels(11), "important");
+        legend.style.setProperty("line-height", "1.28", "important");
+        legend.style.setProperty("column-gap", toDesignPixels(14), "important");
+        legend.style.setProperty("row-gap", toDesignPixels(10), "important");
+        legend.style.setProperty("padding-left", toDesignPixels(12), "important");
+        legend.style.setProperty("padding-right", toDesignPixels(12), "important");
+        legend.style.setProperty("--legend-dot-size", toDesignPixels(8));
+        legend.style.setProperty("--legend-icon-gap", toDesignPixels(7));
+        legend.style.setProperty("--legend-item-gap", toDesignPixels(14));
+        legend.style.setProperty("--legend-row-gap", toDesignPixels(10));
+        legend.style.setProperty("--legend-swatch-width", toDesignPixels(42));
+        legend.style.setProperty("--legend-swatch-height", toDesignPixels(9));
+    });
+}
+
+function applyMobileFontFloor(compact) {
+    const adjusted = document.querySelectorAll("[data-mobile-font-floor]");
+    adjusted.forEach((element) => {
+        element.style.removeProperty("font-size");
+        element.style.removeProperty("line-height");
+        element.removeAttribute("data-mobile-font-floor");
+    });
+
+    if (!compact) {
+        return;
+    }
+
+    const minimumRenderedFontSize = MOBILE_MIN_RENDERED_FONT_SIZE;
+    const candidates = document.querySelectorAll("body *:not(script):not(style):not(noscript)");
+
+    candidates.forEach((element) => {
+        if (!hasDirectReadableText(element)) {
+            return;
+        }
+
+        const computed = window.getComputedStyle(element);
+        if (computed.display === "none") {
+            return;
+        }
+
+        const declaredFontSize = Number.parseFloat(computed.fontSize);
+        if (!Number.isFinite(declaredFontSize) || declaredFontSize <= 0) {
+            return;
+        }
+
+        const transformScale = getCumulativeTransformScale(element);
+        const renderedFontSize = declaredFontSize * transformScale;
+
+        if (renderedFontSize >= minimumRenderedFontSize - 0.05) {
+            return;
+        }
+
+        const correctedFontSize = minimumRenderedFontSize / transformScale;
+        element.style.setProperty("font-size", `${correctedFontSize.toFixed(3)}px`, "important");
+
+        const declaredLineHeight = Number.parseFloat(computed.lineHeight);
+        if (Number.isFinite(declaredLineHeight) && declaredLineHeight < correctedFontSize * 1.18) {
+            element.style.setProperty("line-height", "1.2", "important");
+        }
+
+        element.setAttribute("data-mobile-font-floor", `${minimumRenderedFontSize}px`);
+    });
 }
 
 function setBox(element, left, top, width, height) {
@@ -364,6 +496,7 @@ function addScrollButton(sectionName) {
     const button = makeElement("button", "scroll-button", "<span class=\"scroll-guide\">Keep scrolling as you read to follow the story.</span><span class=\"scroll-label\">Scroll Down</span><span class=\"scroll-arrow\" aria-hidden=\"true\">↓</span>");
     button.type = "button";
     button.id = "scrollButton";
+    button.setAttribute("aria-label", "Scroll to the disease burden section");
     return appendElement(sectionName, button, 750, 866, 420);
 }
 
@@ -449,7 +582,7 @@ function makeRangeBar(plot, start, end, mean, colour) {
     const meanHighlight = document.createElement("img");
     meanHighlight.className = "range-mean-highlight";
     meanHighlight.src = "./assets/" + getMeanImageFile(colour, "plot");
-    meanHighlight.alt = "Mean value in the uncertainty range";
+    meanHighlight.alt = "Mean value marker";
     meanHighlight.style.left = meanLeft + "px";
     plot.appendChild(meanHighlight);
 }
@@ -545,23 +678,34 @@ function makeDotPlot(count, colour, rangeStart, rangeEnd) {
 function makeLegend(colour, label, hasRange) {
     const legend = makeElement("p", "legend");
     const dotClass = colour === "purple" ? "purple-bg" : "red-bg";
-    const dot = makeElement("span", "legend-dot " + dotClass);
 
-    legend.appendChild(dot);
-    legend.appendChild(document.createTextNode(label));
+    const eventItem = makeElement("span", "legend-item legend-event");
+    const dot = makeElement("span", "legend-dot " + dotClass);
+    const eventText = makeElement("span", "legend-text", label);
+    eventItem.appendChild(dot);
+    eventItem.appendChild(eventText);
+    legend.appendChild(eventItem);
 
     if (hasRange) {
+        const rangeItem = makeElement("span", "legend-item legend-range");
         const range = document.createElement("span");
         range.className = "range-swatch " + (colour === "purple" ? "purple-range" : "red-range");
 
         const mean = document.createElement("img");
         mean.className = "range-swatch-mean";
         mean.src = "./assets/" + getMeanImageFile(colour, "legend");
-        mean.alt = "Mean value in the uncertainty range";
+        mean.alt = "Mean value marker";
+
+        const rangeText = makeElement(
+            "span",
+            "legend-text",
+            "Range, with the strongest colour indicating the mean value"
+        );
 
         range.appendChild(mean);
-        legend.appendChild(range);
-        legend.appendChild(document.createTextNode("Uncertainty range, with the strongest colour indicating the mean value"));
+        rangeItem.appendChild(range);
+        rangeItem.appendChild(rangeText);
+        legend.appendChild(rangeItem);
     }
 
     return legend;
@@ -1109,18 +1253,14 @@ function createVaccinePinLayer() {
     }
 
     const layer = makeElement("div", "vaccine-pin-layer");
-
-    const hero = makeElement("div", "vaccine-hero-content");
-    const heroTitle = makeElement("h1", "title main-title vaccine-hero-title", "How Effective and Safe is<br>the Herpes Zoster<br>Vaccine?");
-    setBox(heroTitle, 455, 399, 1010);
-    hero.appendChild(heroTitle);
-
-    const heroHint = makeElement("div", "scroll-button vaccine-hero-hint", "<span class=\"scroll-guide\">Keep scrolling as you read to follow the story.</span><span class=\"scroll-label\">Scroll Down</span><span class=\"scroll-arrow\" aria-hidden=\"true\">↓</span>");
-    setBox(heroHint, 750, 866, 420);
-    hero.appendChild(heroHint);
-    layer.appendChild(hero);
-
     const content = makeElement("div", "vaccine-pin-content");
+
+    const title = makeVaccineTitle();
+    content.appendChild(title);
+
+    const plots = makeIntroPlotsElement("vaccine-plots");
+    setBox(plots, 68, 388, 1785, 650);
+    content.appendChild(plots);
 
     const sourceCard = makeVaccineCard(
         "Here, we walk through data from several studies on the effectiveness and safety of the herpes zoster vaccine in adults aged 60 years and older over a period of 3.1 years.",
@@ -1145,10 +1285,11 @@ function createVaccinePinLayer() {
     document.body.appendChild(layer);
     return layer;
 }
+
 function addVaccinationScrollScene(sectionName, absoluteTop) {
-    const sceneHeight = EFFECTIVENESS_START;
+    const sceneHeight = 1950;
     const pinOffset = 0;
-    const pinDuration = EFFECTIVENESS_START;
+    const pinDuration = 1950;
     const scene = makeElement("div", "vaccine-scrolly");
     scene.dataset.absoluteTop = String(absoluteTop);
     scene.dataset.sceneHeight = String(sceneHeight);
@@ -1183,55 +1324,60 @@ function updateVaccinationScrolly(currentDesignY) {
     currentDesignY = currentDesignY === undefined ? getAnimatedDesignY() : currentDesignY;
     const pinStart = sceneTop - pinOffset;
     const pinEnd = pinStart + pinDuration;
-    const handoffDuration = 520;
     const overallProgress = clamp((currentDesignY - pinStart) / pinDuration, 0, 1);
-    const handoffProgress = clamp((currentDesignY - pinEnd) / handoffDuration, 0, 1);
-    const isPinned = currentDesignY >= pinStart && currentDesignY < pinEnd + handoffDuration;
-    const layerOpacity = isPinned ? (1 - smoothStep(0, 1, handoffProgress)) : 0;
-
-    const hero = pinLayer.querySelector(".vaccine-hero-content");
-    const heroHint = pinLayer.querySelector(".vaccine-hero-hint");
+    const isPinned = getScenePinnedState(currentDesignY, pinStart, pinEnd);
     const content = pinLayer.querySelector(".vaccine-pin-content");
+    const title = pinLayer.querySelector(".vaccine-title");
+    const plots = pinLayer.querySelector(".vaccine-plots");
     const sourceCard = pinLayer.querySelector(".vaccine-card-source");
     const comparisonCard = pinLayer.querySelector(".vaccine-card-comparison");
     const comparisonDetailCard = pinLayer.querySelector(".vaccine-card-detail");
 
+    const sceneFadeIn = smoothStep(0.00, 0.10, overallProgress);
+    const sceneFadeOut = 1 - smoothStep(0.965, 1.0, overallProgress);
+    const sceneOpacity = isPinned ? Math.min(sceneFadeIn, sceneFadeOut) : 0;
+
     pinLayer.classList.toggle("is-active", isPinned);
-    pinLayer.style.opacity = layerOpacity.toFixed(3);
-
-    if (hero !== null) {
-        const compact = isMobileLayout();
-        hero.style.top = compact ? `${Math.round(getPinOffsetY())}px` : "0px";
-        hero.style.transform = compact
-            ? "translate3d(-50%, 0, 0) scale(var(--pin-scale))"
-            : "translate3d(-50%, 0, 0) scale(var(--scale))";
-        hero.style.opacity = layerOpacity.toFixed(3);
-        hero.style.filter = 'none';
-    }
-
-    if (heroHint !== null) {
-        const hintOpacity = 1 - smoothStep(0.025, 0.11, overallProgress);
-        heroHint.style.opacity = (hintOpacity * layerOpacity).toFixed(3);
-        heroHint.style.transform = `translate3d(0, ${lerp(0, -10, 1 - hintOpacity).toFixed(2)}px, 0)`;
-    }
+    pinLayer.style.opacity = sceneOpacity.toFixed(3);
 
     if (content !== null) {
         content.style.top = `${Math.round(getPinOffsetY())}px`;
-        content.style.opacity = layerOpacity.toFixed(3);
+        content.style.opacity = sceneOpacity.toFixed(3);
+    }
+
+    if (title !== null) {
+        const titleMoveProgress = smoothStep(0.30, 0.50, overallProgress);
+        const titleTop = Math.round(lerp(408, 126, titleMoveProgress));
+        title.style.top = `${titleTop}px`;
+        title.style.opacity = sceneOpacity.toFixed(3);
+    }
+
+    if (plots !== null) {
+        const plotProgress = smoothStep(0.44, 0.60, overallProgress);
+        const plotY = lerp(54, 0, plotProgress);
+        const plotScale = lerp(1.02, 1.0, plotProgress);
+        const plotBlur = lerp(8, 0, plotProgress);
+        plots.style.opacity = plotProgress.toFixed(3);
+        plots.style.transform = `translate3d(0, ${plotY.toFixed(2)}px, 0) scale(${(plotScale * getMobileBackgroundScale()).toFixed(4)})`;
+        plots.style.filter = `blur(${plotBlur.toFixed(2)}px)`;
+        plots.querySelectorAll(".mini-dot-plot").forEach((plot) => {
+            plot.classList.toggle("plot-animated", plotProgress > 0.18);
+        });
     }
 
     if (sourceCard !== null) {
-        setVaccineCardScrollPosition(sourceCard, clamp((overallProgress - 0.16) / 0.25, 0, 1), 940, -340);
+    setVaccineCardScrollPosition(sourceCard, clamp((overallProgress - 0.12) / 0.28, 0, 1), 940, -340);
     }
 
     if (comparisonCard !== null) {
-        setVaccineCardScrollPosition(comparisonCard, clamp((overallProgress - 0.42) / 0.25, 0, 1), 940, -340);
+        setVaccineCardScrollPosition(comparisonCard, clamp((overallProgress - 0.40) / 0.36, 0, 1), 940, -340);
     }
 
     if (comparisonDetailCard !== null) {
-        setVaccineCardScrollPosition(comparisonDetailCard, clamp((overallProgress - 0.68) / 0.25, 0, 1), 940, -340);
+        setVaccineCardScrollPosition(comparisonDetailCard, clamp((overallProgress - 0.76) / 0.36, 0, 1), 940, -340);
     }
 }
+
 
 function makeEffectivenessQuestionBlock() {
     const block = makeElement("div", "effectiveness-question-block");
@@ -1998,16 +2144,14 @@ function updateEffectivenessScrolly(currentDesignY) {
     }
     const contentProgress = clamp(chartScroll / 5150, 0, 1);
     const vaccCardEnd = (F1 + CARD_PASS) + (F2 - F1) + CARD_PASS;
-    const layerEnterFade = smoothStep(0, 520, scrollDist);
     const layerExitFade = 1 - clamp((scrollDist - vaccCardEnd) / 400, 0, 1);
-    const layerOpacity = isPinned ? Math.min(layerEnterFade, layerExitFade) : 0;
 
     pinLayer.classList.toggle("is-active", isPinned);
-    pinLayer.style.opacity = layerOpacity.toFixed(3);
+    pinLayer.style.opacity = isPinned ? layerExitFade.toFixed(3) : "0";
 
     if (content !== null) {
         content.style.top = `${Math.round(getPinOffsetY())}px`;
-        content.style.opacity = layerOpacity.toFixed(3);
+        content.style.opacity = isPinned ? layerExitFade.toFixed(3) : "0";
         content.style.transform = `translate3d(-50%, 0px, 0) scale(var(--pin-scale))`;
     }
 
@@ -2027,830 +2171,6 @@ function updateEffectivenessScrolly(currentDesignY) {
 
     if (vaccinatedCard !== null) {
         setVaccineCardScrollPosition(vaccinatedCard, clamp(vaccCardP, 0, 1), 1080, -470);
-    }
-}
-
-
-function makeReliabilityCard() {
-    const card = makeElement("section", "text-card reliability-card");
-    card.appendChild(makeElement("p", "", "In general, data inherently involves uncertainty<br>because data cannot perfectly capture<br>everything in reality."));
-    card.setAttribute("aria-hidden", "true");
-    return card;
-}
-
-function createReliabilityPinLayer() {
-    const existingLayer = document.querySelector(".reliability-pin-layer");
-
-    if (existingLayer !== null) {
-        return existingLayer;
-    }
-
-    const layer = makeElement("div", "reliability-pin-layer");
-    const content = makeElement("div", "reliability-pin-content");
-
-    const title = makeElement("h2", "title question-title reliability-title", "How reliable is this data?");
-    setBox(title, 500, 500, 920);
-    content.appendChild(title);
-
-    const card = makeReliabilityCard();
-    content.appendChild(card);
-
-    layer.appendChild(content);
-    document.body.appendChild(layer);
-    return layer;
-}
-
-function addReliabilityScrollScene(sectionName, absoluteTop) {
-    const sceneHeight = 1150;
-    const pinOffset = 0;
-    const pinDuration = 1150;
-    const scene = makeElement("div", "reliability-scrolly");
-    scene.dataset.absoluteTop = String(absoluteTop);
-    scene.dataset.sceneHeight = String(sceneHeight);
-    scene.dataset.pinOffset = String(pinOffset);
-    scene.dataset.pinDuration = String(pinDuration);
-
-    appendElement(sectionName, scene, 0, absoluteTop, 1920, sceneHeight);
-    createReliabilityPinLayer();
-    return scene;
-}
-
-function updateReliabilityScrolly(currentDesignY) {
-    const scene = document.querySelector(".reliability-scrolly");
-    const pinLayer = document.querySelector(".reliability-pin-layer");
-
-    if (scene === null || pinLayer === null) {
-        return;
-    }
-
-    const scale = getScale();
-    const sceneTop = parseFloat(scene.dataset.absoluteTop || "0");
-    const pinOffset = parseFloat(scene.dataset.pinOffset || "0");
-    const pinDuration = parseFloat(scene.dataset.pinDuration || "1");
-    currentDesignY = currentDesignY === undefined ? getAnimatedDesignY() : currentDesignY;
-    const pinStart = sceneTop - pinOffset;
-    const pinEnd = pinStart + pinDuration;
-    const progress = clamp((currentDesignY - pinStart) / pinDuration, 0, 1);
-    const isPinned = getScenePinnedState(currentDesignY, pinStart, pinEnd);
-    const content = pinLayer.querySelector(".reliability-pin-content");
-    const title = pinLayer.querySelector(".reliability-title");
-    const card = pinLayer.querySelector(".reliability-card");
-    const cardProgress = 0;
-    const cardHasLeft = false;
-    const layerReveal = smoothStep(0.0, 0.16, progress);
-    const layerFade = 1 - smoothStep(0.82, 1.0, progress);
-    const layerOpacity = isPinned ? Math.min(layerReveal, layerFade) : 0;
-
-    pinLayer.classList.toggle("is-active", isPinned);
-    pinLayer.style.opacity = layerOpacity.toFixed(3);
-
-    if (content !== null) {
-        content.style.top = `${Math.round(getPinOffsetY())}px`;
-        content.style.opacity = layerOpacity.toFixed(3);
-    }
-
-    if (title !== null) {
-        const titleFade = 1 - smoothStep(0.90, 1.0, progress);
-        title.style.transform = "translate3d(0, 0, 0)";
-        title.style.opacity = (cardHasLeft ? titleFade : 1).toFixed(3);
-    }
-
-    if (card !== null) {
-        card.style.opacity = "0";
-        card.style.visibility = "hidden";
-        card.style.transform = "translate3d(0, 1080px, 0)";
-    }
-}
-
-function makeUncertaintyTypesGeneralCard() {
-    const card = makeElement("section", "text-card uncertainty-types-general-card");
-    card.appendChild(makeElement("p", "", "In general, data inherently involves uncertainty<br>because data cannot perfectly capture<br>everything in reality."));
-    card.setAttribute("aria-hidden", "true");
-    return card;
-}
-
-function makeUncertaintyTypesDataCard() {
-    const card = makeElement("section", "text-card uncertainty-types-card");
-    card.appendChild(makeElement("p", "", "The data in this study also has uncertainty"));
-    card.setAttribute("aria-hidden", "true");
-    return card;
-}
-
-function makeTargetSampleStudyCard() {
-    const card = makeElement("section", "text-card target-sample-card");
-    card.appendChild(makeElement("p", "", "This study did not include the entire population.<br>Instead, the result was estimated<br>using sample data from the people<br>who took part in the study."));
-    card.setAttribute("aria-hidden", "true");
-    return card;
-}
-
-function makeTargetMultipleThereforeCard() {
-    const card = makeElement("section", "text-card target-multiple-card");
-    card.appendChild(makeElement("p", "", "Therefore, the result could vary<br>if different people had taken part, or if the<br>same type of study was carried out again."));
-    card.setAttribute("aria-hidden", "true");
-    return card;
-}
-
-function makeConfidenceIntervalCard() {
-    const card = makeElement("section", "text-card confidence-interval-card");
-    card.appendChild(makeElement("p", "", "For this reason, rather than relying only on the study mean, we should consider a range of plausible values that is likely to include the true value for the entire population."));
-    card.setAttribute("aria-hidden", "true");
-    return card;
-}
-
-function makeLikelyRangeIntroCard() {
-    const card = makeElement("section", "text-card likely-range-intro-card");
-    card.appendChild(makeElement("p", "", "Now, let’s look at the plausible ranges reported in this study."));
-    card.setAttribute("aria-hidden", "true");
-    return card;
-}
-
-function createUncertaintyTypesPinLayer() {
-    const existingLayer = document.querySelector(".uncertainty-types-pin-layer");
-
-    if (existingLayer !== null) {
-        return existingLayer;
-    }
-
-    const layer = makeElement("div", "uncertainty-types-pin-layer");
-    const content = makeElement("div", "uncertainty-types-pin-content");
-
-    const uncertaintyImage = document.createElement("img");
-    uncertaintyImage.className = "asset uncertainty-types-pinned-image";
-    uncertaintyImage.src = "./assets/uncertainty_types_transparent_highres.png";
-    uncertaintyImage.alt = "Types of uncertainty diagram";
-    setBox(uncertaintyImage, 360, 116, 1200, 849);
-    content.appendChild(uncertaintyImage);
-
-    const generalCard = makeUncertaintyTypesGeneralCard();
-    setBox(generalCard, 464, 0, 993, 301);
-    content.appendChild(generalCard);
-
-    const dataCard = makeUncertaintyTypesDataCard();
-    setBox(dataCard, 340, 0, 1240, 301);
-    content.appendChild(dataCard);
-
-    const sampleImage = document.createElement("img");
-    sampleImage.className = "asset target-sample-pinned-image";
-    sampleImage.src = "./assets/target_population_sample_transparent_highres.png";
-    sampleImage.alt = "Target population and sample diagram";
-    setBox(sampleImage, 260, 168, 1400, 745);
-    content.appendChild(sampleImage);
-
-    const sampleRightWipe = makeElement("div", "target-sample-right-wipe");
-    setBox(sampleRightWipe, 1010, 74, 650, 938);
-    content.appendChild(sampleRightWipe);
-
-    const sampleCard = makeTargetSampleStudyCard();
-    setBox(sampleCard, 340, 0, 1240, 301);
-    content.appendChild(sampleCard);
-
-    const multipleImage = document.createElement("img");
-    multipleImage.className = "asset target-multiple-pinned-image";
-    multipleImage.src = "./assets/target_population_multiple_samples_transparent_highres.png";
-    multipleImage.alt = "Multiple sample results diagram";
-    setBox(multipleImage, 175, 62, 1570, 956);
-    content.appendChild(multipleImage);
-
-    const thereforeCard = makeTargetMultipleThereforeCard();
-    setBox(thereforeCard, 340, 0, 1240, 301);
-    content.appendChild(thereforeCard);
-
-    const confidenceImage = document.createElement("img");
-    confidenceImage.className = "asset confidence-sequence-pinned-image";
-    confidenceImage.src = "./assets/samples_confidence_interval_transparent_highres.png";
-    confidenceImage.alt = "Repeated samples and confidence interval diagram";
-    setBox(confidenceImage, 120, 112, 1680, 856);
-    content.appendChild(confidenceImage);
-
-    const confidenceCard = makeConfidenceIntervalCard();
-    setBox(confidenceCard, 340, 0, 1240, 301);
-    content.appendChild(confidenceCard);
-
-    const likelyRangeIntroCard = makeLikelyRangeIntroCard();
-    setBox(likelyRangeIntroCard, 340, 0, 1240, 301);
-    content.appendChild(likelyRangeIntroCard);
-
-    layer.appendChild(content);
-    document.body.appendChild(layer);
-    return layer;
-}
-
-function addUncertaintyTypesScrollScene(sectionName, absoluteTop) {
-    const sceneHeight = 7960;
-    const pinOffset = 0;
-    const pinDuration = 7960;
-    const scene = makeElement("div", "uncertainty-types-scrolly");
-    scene.dataset.absoluteTop = String(absoluteTop);
-    scene.dataset.sceneHeight = String(sceneHeight);
-    scene.dataset.pinOffset = String(pinOffset);
-    scene.dataset.pinDuration = String(pinDuration);
-
-    appendElement(sectionName, scene, 0, absoluteTop, 1920, sceneHeight);
-    createUncertaintyTypesPinLayer();
-    return scene;
-}
-
-function updateUncertaintyTypesScrolly(currentDesignY) {
-    const scene = document.querySelector(".uncertainty-types-scrolly");
-    const pinLayer = document.querySelector(".uncertainty-types-pin-layer");
-
-    if (scene === null || pinLayer === null) {
-        return;
-    }
-
-    const sceneTop = parseFloat(scene.dataset.absoluteTop || "0");
-    const pinOffset = parseFloat(scene.dataset.pinOffset || "0");
-    const pinDuration = parseFloat(scene.dataset.pinDuration || "1");
-    currentDesignY = currentDesignY === undefined ? getAnimatedDesignY() : currentDesignY;
-
-    const pinStart = sceneTop - pinOffset;
-    const pinEnd = pinStart + pinDuration;
-    const scrollDist = currentDesignY - pinStart;
-    const progress = clamp(scrollDist / 6000, 0, 1);
-    const isPinned = getScenePinnedState(currentDesignY, pinStart, pinEnd);
-
-    const content = pinLayer.querySelector(".uncertainty-types-pin-content");
-    const uncertaintyImage = pinLayer.querySelector(".uncertainty-types-pinned-image");
-    const generalCard = pinLayer.querySelector(".uncertainty-types-general-card");
-    const dataCard = pinLayer.querySelector(".uncertainty-types-card");
-    const sampleImage = pinLayer.querySelector(".target-sample-pinned-image");
-    const sampleRightWipe = pinLayer.querySelector(".target-sample-right-wipe");
-    const sampleCard = pinLayer.querySelector(".target-sample-card");
-    const multipleImage = pinLayer.querySelector(".target-multiple-pinned-image");
-    const thereforeCard = pinLayer.querySelector(".target-multiple-card");
-    const confidenceImage = pinLayer.querySelector(".confidence-sequence-pinned-image");
-    const confidenceCard = pinLayer.querySelector(".confidence-interval-card");
-    const likelyRangeIntroCard = pinLayer.querySelector(".likely-range-intro-card");
-
-    const layerFadeIn = smoothStep(0.00, 0.030, progress);
-    const layerFadeOut = 1 - clamp((scrollDist - 7760) / 200, 0, 1);
-    const layerOpacity = isPinned ? Math.min(layerFadeIn, layerFadeOut) : 0;
-
-    pinLayer.classList.toggle("is-active", isPinned);
-    pinLayer.style.opacity = layerOpacity.toFixed(3);
-
-    if (content !== null) {
-        content.style.top = `${Math.round(getPinOffsetY())}px`;
-        content.style.opacity = layerOpacity.toFixed(3);
-    }
-
-    if (uncertaintyImage !== null) {
-        const imageIn = smoothStep(0.14, 0.28, progress);
-        const imageOut = 1 - smoothStep(0.36, 0.40, progress);
-        const imageOpacity = Math.min(imageIn, imageOut);
-        uncertaintyImage.style.opacity = imageOpacity.toFixed(3);
-        uncertaintyImage.style.transform = `translate3d(0, ${Math.round(lerp(18, 0, imageIn))}px, 0) scale(${((0.985 + imageIn * 0.015) * getMobileBackgroundScale()).toFixed(4)})`;
-    }
-
-    if (generalCard !== null) {
-        setOpaqueSpeechCardScrollPosition(generalCard, clamp((progress - 0.09) / 0.22, 0, 1), 1080, -260);
-    }
-
-    if (dataCard !== null) {
-        setVaccineCardScrollPosition(dataCard, clamp((progress - 0.34) / 0.13, 0, 1), 1080, -260);
-    }
-
-    if (sampleImage !== null) {
-        const sampleIn = smoothStep(0.40, 0.45, progress);
-        const sampleOut = 1 - smoothStep(0.59, 0.64, progress);
-        const sampleOpacity = Math.min(sampleIn, sampleOut);
-        sampleImage.style.opacity = sampleOpacity.toFixed(3);
-        sampleImage.style.transform = `translate3d(0, ${Math.round(lerp(14, 0, sampleIn))}px, 0) scale(${((0.985 + sampleIn * 0.015) * getMobileBackgroundScale()).toFixed(4)})`;
-    }
-
-    if (sampleRightWipe !== null) {
-        sampleRightWipe.style.opacity = "0";
-    }
-
-    if (sampleCard !== null) {
-    setVaccineCardScrollPosition(sampleCard, clamp((progress - 0.455) / 0.22, 0, 1), 1080, -260);
-    }
-
-    if (multipleImage !== null) {
-        const multipleIn = smoothStep(0.64, 0.69, progress);
-        const multipleOut = 1 - smoothStep(0.805, 0.84, progress);
-        const multipleOpacity = Math.min(multipleIn, multipleOut);
-        multipleImage.style.opacity = multipleOpacity.toFixed(3);
-        multipleImage.style.transform = `translate3d(0, ${Math.round(lerp(14, 0, multipleIn))}px, 0) scale(${((0.985 + multipleIn * 0.015) * getMobileBackgroundScale()).toFixed(4)})`;
-    }
-
-    if (thereforeCard !== null) {
-    setVaccineCardScrollPosition(thereforeCard, clamp((progress - 0.68) / 0.22, 0, 1), 1080, -260);
-    }
-
-    if (confidenceImage !== null) {
-        const confidenceIn = smoothStep(5040, 5360, scrollDist);
-        const confidenceOut = 1 - smoothStep(7140, 7420, scrollDist);
-        const confidenceOpacity = Math.min(confidenceIn, confidenceOut);
-        confidenceImage.style.opacity = confidenceOpacity.toFixed(3);
-        confidenceImage.style.transform = `translate3d(0, ${Math.round(lerp(16, 0, confidenceIn))}px, 0) scale(${((0.985 + confidenceIn * 0.015) * getMobileBackgroundScale()).toFixed(4)})`;
-    }
-
-    if (confidenceCard !== null) {
-        setVaccineCardScrollPosition(confidenceCard, clamp((scrollDist - 5520) / 1280, 0, 1), 1080, -260);
-    }
-
-    if (likelyRangeIntroCard !== null) {
-        setOpaqueSpeechCardScrollPosition(likelyRangeIntroCard, clamp((scrollDist - 6780) / 980, 0, 1), 1080, -430);
-    }
-
-    if (pinLayer !== null) {
-        pinLayer.style.background = scrollDist >= 7530 ? "transparent" : "#ffffff";
-    }
-}
-
-
-function makeEffectivenessRangePinnedChart(config) {
-    const title = config && config.title
-        ? config.title
-        : 'The Likely Range of Herpes Zoster Cases<br>in the <span class="blue">Placebo</span> Group';
-    const count = config && config.count !== undefined ? config.count : 33;
-    const rangeStart = config && config.rangeStart !== undefined ? config.rangeStart : 30;
-    const rangeEnd = config && config.rangeEnd !== undefined ? config.rangeEnd : 36;
-    const meanValue = config && config.mean !== undefined ? config.mean : 33;
-    const colour = config && config.colour ? config.colour : 'red';
-    const extraClass = config && config.extraClass ? ` ${config.extraClass}` : '';
-
-    const chart = makeElement('section', `chart-section likely-range-pinned-chart${extraClass}`);
-
-    const heading = makeElement('h3', '', title);
-    chart.appendChild(heading);
-
-    const plot = makeDotPlot(count, colour, rangeStart, rangeEnd);
-    plot.classList.add('pin-managed-plot');
-    chart.appendChild(plot);
-
-    const mean = makeElement('p', 'mean', `<span class="${colour}">0~0</span> cases<br>(Mean: <span class="${colour}">0</span> cases)`);
-    mean.dataset.rangeCountUp = 'true';
-    mean.dataset.rangeStart = String(rangeStart);
-    mean.dataset.rangeEnd = String(rangeEnd);
-    mean.dataset.countUp = String(meanValue);
-    mean.dataset.colour = colour;
-    chart.appendChild(mean);
-
-    const legend = makeLegend(colour, 'Case of herpes zoster', true);
-    chart.appendChild(legend);
-
-    return chart;
-}
-
-function resetEffectivenessRangePinnedChart(chart) {
-    if (chart === null) {
-        return;
-    }
-
-    const plot = chart.querySelector('.dot-plot');
-    const mean = chart.querySelector('.mean[data-range-count-up]');
-
-    if (plot !== null) {
-        plot.classList.remove('plot-animated', 'dot-morphing');
-        delete plot.dataset.animated;
-        resetDotMorph(plot);
-    }
-
-    if (mean !== null) {
-        delete mean.dataset.counted;
-        mean.innerHTML = '<span class="red">0~0</span> cases<br>(Mean: <span class="red">0</span> cases)';
-    }
-}
-
-function makeEffectivenessRangePinnedCard(html, extraClass) {
-    const className = extraClass ? `text-card effectiveness-range-pinned-card ${extraClass}` : 'text-card effectiveness-range-pinned-card';
-    const card = makeElement('section', className);
-    card.appendChild(makeElement('p', '', html));
-    card.setAttribute('aria-hidden', 'true');
-    return card;
-}
-
-
-function makeEffectivenessRangePinnedCompare() {
-    const compare = makeElement('section', 'compare-section effectiveness-range-pinned-compare');
-
-    const title = makeElement('h2', 'title compare-title', 'The Effectiveness of Vaccination');
-    setBox(title, 425, 0, 1070);
-    compare.appendChild(title);
-
-    const leftLabel = makeElement('p', 'compare-label', '<span class="blue">Placebo group</span>');
-    setBox(leftLabel, 180, 150, 600);
-    compare.appendChild(leftLabel);
-
-    const rightLabel = makeElement('p', 'compare-label', '<span class="blue">Vaccinated group</span>');
-    setBox(rightLabel, 1140, 150, 600);
-    compare.appendChild(rightLabel);
-
-    const vs = makeElement('div', 'vs red-vs', 'VS');
-    setBox(vs, 906, 105, 108, 108);
-    compare.appendChild(vs);
-
-    const leftPlot = makeElement('div', 'side-plot effectiveness-range-compare-left');
-    setBox(leftPlot, 65, 245, 830, 520);
-    const leftDots = makeDotPlot(33, 'red', 30, 36);
-    leftDots.classList.add('pin-managed-plot');
-    leftPlot.appendChild(leftDots);
-    const leftMean = makeElement('p', 'mean', '<span class="red">0~0</span> cases<br>(Mean: <span class="red">0</span> cases)');
-    leftMean.dataset.rangeCountUp = 'true';
-    leftMean.dataset.rangeStart = '30';
-    leftMean.dataset.rangeEnd = '36';
-    leftMean.dataset.countUp = '33';
-    leftMean.dataset.colour = 'red';
-    leftPlot.appendChild(leftMean);
-    compare.appendChild(leftPlot);
-
-    const arrow = document.createElement('img');
-    arrow.className = 'arrow-icon';
-    arrow.alt = 'A down arrow showing reduction after vaccination';
-    arrow.src = './assets/arrow1.png';
-    setBox(arrow, 886, 352, 148, 148);
-    compare.appendChild(arrow);
-
-    const rightPlot = makeElement('div', 'side-plot effectiveness-range-compare-right');
-    setBox(rightPlot, 1025, 245, 830, 520);
-    const rightDots = makeDotPlot(16, 'red', 14, 19);
-    rightDots.classList.add('pin-managed-plot');
-    rightPlot.appendChild(rightDots);
-    const rightMean = makeElement('p', 'mean', '<span class="red">0~0</span> cases<br>(Mean: <span class="red">0</span> cases)');
-    rightMean.dataset.rangeCountUp = 'true';
-    rightMean.dataset.rangeStart = '14';
-    rightMean.dataset.rangeEnd = '19';
-    rightMean.dataset.countUp = '16';
-    rightMean.dataset.colour = 'red';
-    rightPlot.appendChild(rightMean);
-    compare.appendChild(rightPlot);
-
-    const legend = makeLegend('red', 'Case of herpes zoster', true);
-    compare.appendChild(legend);
-
-    return compare;
-}
-
-function createEffectivenessRangePinLayer() {
-    const existingLayer = document.querySelector('.effectiveness-range-pin-layer');
-
-    if (existingLayer !== null) {
-        return existingLayer;
-    }
-
-    const layer = makeElement('div', 'effectiveness-range-pin-layer');
-    const content = makeElement('div', 'effectiveness-range-pin-content');
-
-    const placeboChart = makeEffectivenessRangePinnedChart({
-        title: 'The Likely Range of Herpes Zoster Cases<br>in the <span class="blue">Placebo</span> Group',
-        count: 33,
-        rangeStart: 30,
-        rangeEnd: 36,
-        mean: 33,
-        colour: 'red',
-        extraClass: 'likely-range-pinned-chart--placebo'
-    });
-    setBox(placeboChart, 410, 160, 1100, 760);
-    content.appendChild(placeboChart);
-
-    const vaccinatedChart = makeEffectivenessRangePinnedChart({
-        title: 'The Likely Range of Herpes Zoster Cases<br>in the <span class="blue">Vaccinated</span> Group',
-        count: 16,
-        rangeStart: 14,
-        rangeEnd: 19,
-        mean: 16,
-        colour: 'red',
-        extraClass: 'likely-range-pinned-chart--vaccinated'
-    });
-    setBox(vaccinatedChart, 410, 160, 1100, 760);
-    content.appendChild(vaccinatedChart);
-
-    const placeboCard = makeEffectivenessRangePinnedCard(
-        'The number of people who get herpes zoster in the placebo group is most likely between <span class="red">30</span> and <span class="red">36</span> people in every 1000 people.',
-        'effectiveness-range-pinned-card--placebo'
-    );
-    setBox(placeboCard, 464, 0, 993, 301);
-    content.appendChild(placeboCard);
-
-    const vaccinatedCard = makeEffectivenessRangePinnedCard(
-        'The number of people who get herpes zoster in the vaccinated group is most likely between <span class="red">14</span> and <span class="red">19</span> people in every 1000 people.',
-        'effectiveness-range-pinned-card--vaccinated'
-    );
-    setBox(vaccinatedCard, 464, 0, 993, 301);
-    content.appendChild(vaccinatedCard);
-
-    const compare = makeEffectivenessRangePinnedCompare();
-    setBox(compare, 0, 112, 1920, 850);
-    content.appendChild(compare);
-
-    const compareLowerCard = makeEffectivenessRangePinnedCard(
-        'The most likely range is lower in the vaccinated group at 14 to 19 cases per 1000 people, compared with 30 to 36 in the placebo group.',
-        'effectiveness-range-pinned-card--compare-lower'
-    );
-    setBox(compareLowerCard, 464, 0, 993, 301);
-    content.appendChild(compareLowerCard);
-
-    const compareOverallCard = makeEffectivenessRangePinnedCard(
-        'Overall, this study shows that the herpes<br>zoster vaccine appears to reduce the risk<br>of developing it.',
-        'effectiveness-range-pinned-card--compare-overall'
-    );
-    setBox(compareOverallCard, 464, 0, 993, 301);
-    content.appendChild(compareOverallCard);
-
-    const safetyIntro = makeElement('div', 'effectiveness-range-safety-intro');
-    const safetyIntroTitle = makeElement('h2', 'title section-title', 'The <span class="blue">Safety</span> of Vaccination');
-    const safetyIntroSub = makeElement('p', 'subtitle', 'How many people experienced a <span class="blue">serious adverse effect</span><br>in the placebo group and in the vaccinated group?');
-    safetyIntro.appendChild(safetyIntroTitle);
-    safetyIntro.appendChild(safetyIntroSub);
-    setBox(safetyIntro, 260, 0, 1400, 1080);
-    content.appendChild(safetyIntro);
-
-    const safetyInfoCard = makeEffectivenessRangePinnedCard('Serious adverse effects refer to severe outcomes such as death, life-threatening conditions, hospitalisation, disability or permanent damage, congenital anomalies/birth defects, required intervention to prevent permanent impairment or damage, or other important medical events.', 'effectiveness-range-safety-info-card');
-    setBox(safetyInfoCard, 464, 0, 993, 301);
-    content.appendChild(safetyInfoCard);
-
-    layer.appendChild(content);
-    document.body.appendChild(layer);
-    return layer;
-}
-
-function addEffectivenessRangeScrollScene(sectionName, absoluteTop) {
-    const sceneHeight = 8600;
-    const pinOffset = 0;
-    const pinDuration = 8600;
-    const scene = makeElement('div', 'effectiveness-range-scrolly');
-    scene.dataset.absoluteTop = String(absoluteTop);
-    scene.dataset.sceneHeight = String(sceneHeight);
-    scene.dataset.pinOffset = String(pinOffset);
-    scene.dataset.pinDuration = String(pinDuration);
-
-    appendElement(sectionName, scene, 0, absoluteTop, 1920, sceneHeight);
-    createEffectivenessRangePinLayer();
-    return scene;
-}
-
-function updateEffectivenessRangeScrolly(currentDesignY) {
-    const scene = document.querySelector('.effectiveness-range-scrolly');
-    const pinLayer = document.querySelector('.effectiveness-range-pin-layer');
-
-    if (scene === null || pinLayer === null) {
-        return;
-    }
-
-    const sceneTop = parseFloat(scene.dataset.absoluteTop || '0');
-    const pinOffset = parseFloat(scene.dataset.pinOffset || '0');
-    const pinDuration = parseFloat(scene.dataset.pinDuration || '1');
-    currentDesignY = currentDesignY === undefined ? getAnimatedDesignY() : currentDesignY;
-    const actualDesignY = readDesignScrollY();
-    const progressDesignY = actualDesignY > currentDesignY ? actualDesignY : currentDesignY;
-
-    const pinStart = sceneTop - pinOffset;
-    const pinEnd = pinStart + pinDuration;
-    const preRevealStart = pinStart - 430;
-    const preRevealEnd = pinStart - 80;
-    const buildDuration = 5000;
-    const scrollDist = progressDesignY - pinStart;
-    const overallProgress = clamp(scrollDist / pinDuration, 0, 1);
-    const progress = clamp(scrollDist / buildDuration, 0, 1);
-    const outroDuration = Math.max(1, pinDuration - buildDuration);
-    const outroProgress = clamp((scrollDist - buildDuration) / outroDuration, 0, 1);
-    const isPinned = getScenePinnedState(currentDesignY, preRevealStart, pinEnd);
-
-    const content = pinLayer.querySelector('.effectiveness-range-pin-content');
-    const placeboChart = pinLayer.querySelector('.likely-range-pinned-chart--placebo');
-    const vaccinatedChart = pinLayer.querySelector('.likely-range-pinned-chart--vaccinated');
-    const placeboCard = pinLayer.querySelector('.effectiveness-range-pinned-card--placebo');
-    const vaccinatedCard = pinLayer.querySelector('.effectiveness-range-pinned-card--vaccinated');
-    const compareLowerCard = pinLayer.querySelector('.effectiveness-range-pinned-card--compare-lower');
-    const compareOverallCard = pinLayer.querySelector('.effectiveness-range-pinned-card--compare-overall');
-    const rangeCompare = pinLayer.querySelector('.effectiveness-range-pinned-compare');
-    const safetyInfoCard = pinLayer.querySelector('.effectiveness-range-safety-info-card');
-    const safetyFirstChart = document.querySelector('#section-safety .safety-first-chart');
-
-    const preRevealOpacity = smoothStep(preRevealStart, preRevealEnd, progressDesignY);
-    const layerFadeIn = scrollDist < 0 ? preRevealOpacity : Math.max(preRevealOpacity, smoothStep(0.00, 0.02, overallProgress));
-    const layerOpacity = isPinned ? layerFadeIn : 0;
-
-    pinLayer.classList.toggle('is-active', isPinned);
-    pinLayer.style.opacity = layerOpacity.toFixed(3);
-
-    if (content !== null) {
-        content.style.top = `${Math.round(getPinOffsetY())}px`;
-        content.style.opacity = layerOpacity.toFixed(3);
-    }
-
-    if (!isPinned && progress <= 0.02) {
-        resetEffectivenessRangePinnedChart(placeboChart);
-        resetEffectivenessRangePinnedChart(vaccinatedChart);
-    }
-
-    const setPinnedRangeChartState = (chart, options) => {
-        if (chart === null) {
-            return;
-        }
-
-        const chartReveal = smoothStep(options.revealStart, options.revealEnd, progress);
-        const chartHold = 1 - smoothStep(options.fadeStart, options.fadeEnd, progress);
-        const chartOpacity = Math.min(chartReveal, chartHold) * layerOpacity;
-        chart.style.opacity = chartOpacity.toFixed(3);
-        chart.style.visibility = chartOpacity > 0.02 ? 'visible' : 'hidden';
-        chart.style.transform = `translate3d(0, 0, 0) scale(${getMobileBackgroundScale().toFixed(4)})`;
-
-        const plot = chart.querySelector('.dot-plot');
-        if (plot !== null) {
-            const dotProgress = clamp((progress - options.dotStart) / (options.dotEnd - options.dotStart), 0, 1);
-            if (dotProgress > 0.001 && chartOpacity > 0.01) {
-                applyDotMorph(plot, dotProgress, {
-                    clusterX: 415,
-                    clusterY: 258,
-                    radius: 50,
-                    startScale: 0.30,
-                    curve: 24
-                });
-                plot.style.opacity = chartOpacity.toFixed(3);
-            } else if (chartOpacity <= 0.01 || dotProgress <= 0.001) {
-                resetDotMorph(plot);
-                plot.style.opacity = chartOpacity.toFixed(3);
-            }
-        }
-
-        const rangeReveal = smoothStep(options.rangeVisualStart, options.rangeVisualEnd, progress);
-        chart.querySelectorAll('.range-background').forEach((element) => {
-            element.style.opacity = (chartOpacity * rangeReveal).toFixed(3);
-            element.style.transform = `scaleX(${rangeReveal.toFixed(3)})`;
-        });
-        chart.querySelectorAll('.range-mean-highlight').forEach((element) => {
-            element.style.opacity = (chartOpacity * rangeReveal).toFixed(3);
-            element.style.transform = `scaleY(${(0.7 + (rangeReveal * 0.3)).toFixed(3)})`;
-        });
-
-        const meanElement = chart.querySelector('.mean[data-range-count-up]');
-        if (meanElement !== null) {
-            setScrollTiedRangeCount(
-                meanElement,
-                options.rangeStart,
-                options.rangeEnd,
-                options.meanValue,
-                options.colour,
-                (progress - options.countStart) / (options.countEnd - options.countStart)
-            );
-            meanElement.style.opacity = chartOpacity.toFixed(3);
-            meanElement.style.transform = chartOpacity > 0.01 ? 'translate3d(0, 0, 0)' : 'translate3d(0, 10px, 0)';
-        }
-
-        chart.querySelectorAll('h3, .legend').forEach((element) => {
-            element.style.opacity = chartOpacity.toFixed(3);
-            element.style.transform = chartOpacity > 0.01 ? 'translate3d(0, 0, 0)' : 'translate3d(0, 10px, 0)';
-        });
-    };
-
-
-    const setPinnedCompareState = (compare, options) => {
-        if (compare === null) {
-            return;
-        }
-
-        const reveal = smoothStep(options.revealStart, options.revealEnd, progress);
-        const fadeOut = 1 - smoothStep(options.fadeStart, options.fadeEnd, progress);
-        const compareOpacity = reveal * fadeOut * layerOpacity;
-        compare.style.opacity = compareOpacity.toFixed(3);
-        compare.style.visibility = compareOpacity > 0.02 ? 'visible' : 'hidden';
-        compare.style.transform = `translate3d(0, 0, 0) scale(${getMobileBackgroundScale().toFixed(4)})`;
-
-        const dotProgress = clamp((progress - options.dotStart) / (options.dotEnd - options.dotStart), 0, 1);
-        compare.querySelectorAll('.dot-plot').forEach((plot, plotIndex) => {
-            if (dotProgress > 0.001 && compareOpacity > 0.01) {
-                applyDotMorph(plot, dotProgress, {
-                    clusterX: 415,
-                    clusterY: 258,
-                    radius: 50,
-                    startScale: 0.30,
-                    curve: 24
-                });
-                plot.style.opacity = compareOpacity.toFixed(3);
-            } else {
-                resetDotMorph(plot);
-                plot.style.opacity = compareOpacity.toFixed(3);
-            }
-        });
-
-        const rangeReveal = smoothStep(options.rangeVisualStart, options.rangeVisualEnd, progress);
-        compare.querySelectorAll('.range-background').forEach((element) => {
-            element.style.opacity = (compareOpacity * rangeReveal).toFixed(3);
-            element.style.transform = `scaleX(${rangeReveal.toFixed(3)})`;
-        });
-        compare.querySelectorAll('.range-mean-highlight').forEach((element) => {
-            element.style.opacity = (compareOpacity * rangeReveal).toFixed(3);
-            element.style.transform = `scaleY(${(0.7 + (rangeReveal * 0.3)).toFixed(3)})`;
-        });
-
-        const countProgress = (progress - options.countStart) / (options.countEnd - options.countStart);
-        const leftMean = compare.querySelector('.effectiveness-range-compare-left .mean[data-range-count-up]');
-        const rightMean = compare.querySelector('.effectiveness-range-compare-right .mean[data-range-count-up]');
-        setScrollTiedRangeCount(leftMean, 30, 36, 33, 'red', countProgress);
-        setScrollTiedRangeCount(rightMean, 14, 19, 16, 'red', countProgress);
-
-        compare.querySelectorAll('h2, .compare-label, .vs, .legend, .mean').forEach((element) => {
-            const labelReveal = smoothStep(options.revealStart, options.revealEnd, progress);
-            element.style.opacity = (compareOpacity * labelReveal).toFixed(3);
-            element.style.transform = labelReveal > 0.01 ? 'translate3d(0, 0, 0)' : 'translate3d(0, 10px, 0)';
-        });
-
-        const arrow = compare.querySelector('.arrow-icon');
-        if (arrow !== null) {
-            const arrowReveal = smoothStep(options.arrowStart, options.arrowEnd, progress);
-            arrow.style.opacity = (compareOpacity * arrowReveal).toFixed(3);
-            arrow.style.transform = `translate3d(0, ${Math.round(lerp(14, 0, arrowReveal))}px, 0)`;
-        }
-    };
-
-    setPinnedRangeChartState(placeboChart, {
-        revealStart: -0.07,
-        revealEnd: 0.00,
-        dotStart: 0.04,
-        dotEnd: 0.20,
-        rangeVisualStart: 0.23,
-        rangeVisualEnd: 0.30,
-        countStart: 0.12,
-        countEnd: 0.30,
-        fadeStart: 0.52,
-        fadeEnd: 0.58,
-        rangeStart: 30,
-        rangeEnd: 36,
-        meanValue: 33,
-        colour: 'red'
-    });
-
-    setPinnedRangeChartState(vaccinatedChart, {
-        revealStart: 0.58,
-        revealEnd: 0.66,
-        dotStart: 0.62,
-        dotEnd: 0.73,
-        rangeVisualStart: 0.74,
-        rangeVisualEnd: 0.81,
-        countStart: 0.68,
-        countEnd: 0.82,
-        fadeStart: 0.88,
-        fadeEnd: 0.92,
-        rangeStart: 14,
-        rangeEnd: 19,
-        meanValue: 16,
-        colour: 'red'
-    });
-
-    if (placeboCard !== null) {
-        setVaccineCardScrollPosition(placeboCard, clamp((progress - 0.34) / 0.18, 0, 1), 1080, -430);
-    }
-
-    if (vaccinatedCard !== null) {
-        setVaccineCardScrollPosition(vaccinatedCard, clamp((progress - 0.81) / 0.13, 0, 1), 1080, -430);
-    }
-
-    setPinnedCompareState(rangeCompare, {
-        revealStart: 0.915,
-        revealEnd: 0.940,
-        dotStart: 0.932,
-        dotEnd: 0.965,
-        rangeVisualStart: 0.965,
-        rangeVisualEnd: 0.978,
-        countStart: 0.945,
-        countEnd: 0.980,
-        arrowStart: 0.972,
-        arrowEnd: 0.985,
-        fadeStart: 2.0,
-        fadeEnd: 2.0
-    });
-
-    const compareFade = 1 - smoothStep(0.50, 0.62, outroProgress);
-    if (rangeCompare !== null && scrollDist >= buildDuration) {
-        const compareContainerOpacity = layerOpacity * compareFade;
-        rangeCompare.style.opacity = compareContainerOpacity.toFixed(3);
-        rangeCompare.style.visibility = compareContainerOpacity > 0.02 ? 'visible' : 'hidden';
-    }
-
-    if (compareLowerCard !== null) {
-        setVaccineCardScrollPosition(compareLowerCard, clamp(outroProgress / 0.26, 0, 1), 1080, -470);
-        compareLowerCard.style.opacity = (parseFloat(compareLowerCard.style.opacity || '0') * layerOpacity).toFixed(3);
-    }
-
-    if (compareOverallCard !== null) {
-        setVaccineCardScrollPosition(compareOverallCard, clamp((outroProgress - 0.20) / 0.28, 0, 1), 1080, -470);
-        compareOverallCard.style.opacity = (parseFloat(compareOverallCard.style.opacity || '0') * layerOpacity).toFixed(3);
-    }
-
-    const safetyIntro = pinLayer.querySelector('.effectiveness-range-safety-intro');
-    if (safetyIntro !== null) {
-        const introReveal = smoothStep(0.50, 0.60, outroProgress);
-        const introFadeOut = 1 - smoothStep(0.90, 0.99, outroProgress);
-        const introOpacity = layerOpacity * Math.min(introReveal, introFadeOut);
-        safetyIntro.style.opacity = introOpacity.toFixed(3);
-        safetyIntro.style.visibility = introOpacity > 0.02 ? 'visible' : 'hidden';
-        safetyIntro.style.transform = `translate3d(0, ${lerp(26, 0, introReveal).toFixed(2)}px, 0)`;
-    }
-
-    if (safetyInfoCard !== null) {
-        const infoProgress = clamp((outroProgress - 0.70) / 0.28, 0, 1);
-        setOpaqueSpeechCardScrollPosition(safetyInfoCard, infoProgress, 1080, -470);
-    }
-
-    if (safetyFirstChart !== null) {
-        const chartReveal = smoothStep(0.90, 1.0, outroProgress);
-        const chartOpacity = chartReveal;
-        safetyFirstChart.style.opacity = chartOpacity.toFixed(3);
-        safetyFirstChart.style.visibility = chartOpacity > 0.02 ? 'visible' : 'hidden';
-        safetyFirstChart.style.transform = `translate3d(0, ${lerp(26, 0, chartReveal).toFixed(2)}px, 0)`;
     }
 }
 
@@ -2890,16 +2210,14 @@ function updateMobileHeroLayer(currentDesignY) {
         return;
     }
 
-    const firstPinnedScene = document.querySelector(".vaccine-scrolly");
+    const firstPinnedScene = document.querySelector(".disease-scrolly");
     const firstSceneTop = firstPinnedScene !== null
         ? parseFloat(firstPinnedScene.dataset.absoluteTop || "1260")
         : 1260;
     const firstPinOffset = firstPinnedScene !== null
         ? parseFloat(firstPinnedScene.dataset.pinOffset || "150")
         : 150;
-    const heroEnd = firstSceneTop <= 0
-        ? 520
-        : firstSceneTop - firstPinOffset;
+    const heroEnd = firstSceneTop - firstPinOffset;
     const actualDesignY = readDesignScrollY();
     const heroProgressY = Math.max(currentDesignY || 0, actualDesignY || 0);
     const isActive = heroProgressY < heroEnd;
@@ -2917,13 +2235,19 @@ function updateMobileHeroLayer(currentDesignY) {
 }
 
 function scrollToBurden() {
-    const scene = document.querySelector(".vaccine-scrolly");
+    const scene = document.querySelector(".disease-scrolly");
 
     if (scene !== null) {
         const scale = getScale();
         const sceneTop = parseFloat(scene.dataset.absoluteTop || "0");
         const pinOffset = parseFloat(scene.dataset.pinOffset || "0");
-        window.scrollTo({ top: (sceneTop - pinOffset) * scale, behavior: prefersReducedMotion ? "auto" : "smooth" });
+        const targetDesignY = Math.max(0, sceneTop - pinOffset);
+        scrollState.targetDesignY = targetDesignY;
+        if (prefersReducedMotion) {
+            scrollState.currentDesignY = targetDesignY;
+        }
+        window.scrollTo({ top: targetDesignY * scale, behavior: prefersReducedMotion ? "auto" : "smooth" });
+        requestScrollSceneFrame();
     }
 }
 
@@ -2932,103 +2256,16 @@ function renderIntro() {
     appendElement("intro", mainTitle, 455, 399, 1010);
 
     addScrollButton("intro");
-    addVaccinationScrollScene("intro", CONTEXT_START);
+
+    addDiseaseScrollScene("intro", 1260);
+
+    addRiskScrollScene("intro", 3140);
+
+    addVaccinationScrollScene("intro", 5200);
 }
 
 function renderEffectiveness() {
-    addEffectivenessIntroScene("effectiveness", EFFECTIVENESS_START);
-}
-
-function renderUncertainty() {
-    addReliabilityScrollScene("uncertainty", 15650);
-    addUncertaintyTypesScrollScene("uncertainty", 16800);
-}
-
-function renderEffectivenessRange() {
-    addEffectivenessRangeScrollScene('effectivenessRange', 24760);
-}
-
-function renderSafety() {
-    addChart("safety", {
-        top: 28306,
-        className: 'safety-first-chart',
-        title: "Serious Adverse Effect<br>in the <span class=\"blue\">Placebo</span> Group",
-        count: 22,
-        colour: "purple",
-        mean: "Mean: <span class=\"purple\">22</span> cases",
-        legend: "Case of serious adverse effect",
-        hasRange: false
-    });
-    addCard("safety", "The study shows that about <span class=\"purple\">22</span> in every 1000 people who do not receive the vaccine had serious adverse events.", 29155);
-
-    addChart("safety", {
-        top: 29810,
-        title: "Serious Adverse Effect<br>in the <span class=\"blue\">Vaccinated</span> Group",
-        count: 23,
-        colour: "purple",
-        mean: "Mean: <span class=\"purple\">23</span> cases",
-        legend: "Case of serious adverse effect",
-        hasRange: false
-    });
-    addCard("safety", "The study shows that<br>about <span class=\"purple\">23</span> in every 1000 people<br>who receive the vaccine<br>had serious adverse events.", 30695);
-    addCard("safety", "But how about uncertainty in the study data?", 31426);
-
-    addChart("safety", {
-        top: 31888,
-        title: "The Likely Range of Serious Adverse Effect<br>in the <span class=\"blue\">Placebo</span> Group",
-        count: 22,
-        colour: "purple",
-        rangeStart: 20,
-        rangeEnd: 24,
-        mean: "<span class=\"purple\">20~24</span> cases<br>(Mean: <span class=\"purple\">22</span> cases)",
-        legend: "Case of serious adverse effect",
-        hasRange: true
-    });
-    addCard("safety", "The number of people who experience a serious adverse effect in the placebo group is most likely between <span class=\"purple\">20</span> and <span class=\"purple\">24</span> in every 1000 people.", 32779);
-
-    addChart("safety", {
-        top: 33466,
-        title: "The Likely Range of Serious Adverse Effect<br>in the <span class=\"blue\">Vaccinated</span> Group",
-        count: 23,
-        colour: "purple",
-        rangeStart: 21,
-        rangeEnd: 26,
-        mean: "<span class=\"purple\">21~26</span> cases<br>(Mean: <span class=\"purple\">23</span> cases)",
-        legend: "Case of serious adverse effect",
-        hasRange: true
-    });
-    addCard("safety", "The number of people who experience a serious adverse effect in the vaccinated group is most likely between <span class=\"purple\">21</span> and <span class=\"purple\">26</span> in every 1000 people.", 34356);
-
-    addCompare("safety", {
-        top: 35042,
-        title: "The Serious Adverse Effect of Vaccination",
-        colour: "purple",
-        arrowFile: "arrow2.png",
-        arrowAlt: "An up arrow showing slightly more serious adverse events after vaccination",
-        legend: "Case of serious adverse effect",
-        left: {
-            count: 22,
-            rangeStart: 20,
-            rangeEnd: 24,
-            mean: "<span class=\"purple\">20~24</span> cases<br>(Mean: <span class=\"purple\">22</span> cases)"
-        },
-        right: {
-            count: 23,
-            rangeStart: 21,
-            rangeEnd: 26,
-            mean: "<span class=\"purple\">21~26</span> cases<br>(Mean: <span class=\"purple\">23</span> cases)"
-        }
-    });
-    addCard("safety", "For every 1,000 people, the vaccinated group<br>had an average of <span class=\"purple\">1</span> more serious adverse<br>event compared to the placebo group.", 35984);
-    addCard("safety", "The likely ranges overlapped and were close<br>to each other, at <span class=\"purple\">20 to 24</span> cases<br>in the placebo group and <span class=\"purple\">21 to 26</span> cases<br>in the vaccinated group", 36345);
-    addCard("safety", "Overall, the study shows no clear difference<br>between the vaccinated and placebo groups in<br>serious adverse events.", 36706);
-}
-
-function renderClosing() {
-    addCard("closing", "This information may help you consider the possible benefits and harms of vaccination, while keeping the uncertainty inherent in the evidence in mind.", 37421);
-    addImage("closing", "own_factors_transparent_highres.png", "Personal factors for vaccination decision", 435, 37787, 1050, 847, "own-factors");
-    addCard("closing", "However, the results should be interpreted alongside your personal risk of herpes zoster and relevant circumstances, including your age, immune status, and medical history, for an informed vaccination decision.", 38699);
-    addParagraph("closing", "Thank you for reading the article.<br>Please return to the original survey page<br>and answer the questions.", "closing final-message", 260, 39357, 1400);
+    addEffectivenessIntroScene("effectiveness", 7150);
 }
 
 function runRangeCountUp(meanElement) {
@@ -3179,18 +2416,14 @@ function addProgressRail() {
 function updateProgressRail() {
     const scale = getScale();
     const currentY = window.scrollY / scale;
-    let activeKey = null;
+    let activeKey = navSections[0].key;
 
     navSections.forEach((section) => {
-        const sectionTop = getNavSectionActiveTop(section);
-        if (currentY >= sectionTop) {
+        const sectionTop = getNavSectionTop(section);
+        if (currentY >= sectionTop - 400) {
             activeKey = section.key;
         }
     });
-
-    if (currentY >= getThankYouNavigationTop()) {
-        activeKey = null;
-    }
 
     document.querySelectorAll(".progress-dot").forEach((button) => {
         const active = button.dataset.section === activeKey;
@@ -3293,57 +2526,87 @@ function setupScrollamaState() {
     renderFromScrollama();
 }
 
-const SAFETY_PIN_BASE = SAFETY_START;   
-const PAGE_REVEAL = 2600;        
+const EFFECTIVENESS_HANDOFF_OVERLAP = 400;
+const SAFETY_PIN_BASE = 15650 - EFFECTIVENESS_HANDOFF_OVERLAP;
+const PAGE_REVEAL = 2600;
 const STANDARD_BUBBLE_TRAVEL = 2000;
-const PAGE_BUBBLE = STANDARD_BUBBLE_TRAVEL;        
-const PAGE_FADE = 1100;          
+const PAGE_BUBBLE = STANDARD_BUBBLE_TRAVEL;
+const PAGE_FADE = 1100;
 
 const SAFETY_SCENE_DEFS = [
     {
-        id: 'safety-intro', kind: 'intro',
-        title: 'The <span class="blue">Safety</span> of Vaccination',
-        subtitle: 'How many people experienced a <span class="blue">serious adverse effect</span><br>in the placebo group and in the vaccinated group?'
+        id: 'effectiveness-compare', kind: 'compare', revealDist: 1400,
+        transparentLayer: true,
+        fadeBackgroundWithLastBubble: true,
+        backgroundFadeBubbleProgress: 0.80,
+        backgroundFadeDuration: 800,
+        compare: {
+            title: 'The Effectiveness of Vaccination', colour: 'red', hasRange: false,
+            arrowFile: 'arrow1.png', arrowAlt: 'A down arrow showing fewer herpes zoster cases after vaccination',
+            left: { count: 33, mean: 33 },
+            right: { count: 16, mean: 16 }
+        },
+        bubbles: [
+            'So for every 1,000 people, vaccination reduced an average of <span class="red">17</span> herpes zoster cases compared to the placebo group.',
+            'Overall, this study shows that the herpes zoster vaccine appears to prevent the risk of developing it.'
+        ]
     },
     {
-        id: 'safety-info', kind: 'bubbles', bubbleTravel: STANDARD_BUBBLE_TRAVEL,
-        bubbles: ['Serious adverse effects refer to severe outcomes such as death, life-threatening conditions, hospitalisation, disability or permanent damage, congenital anomalies/birth defects, required intervention to prevent permanent impairment or damage, or other important medical events.']
+        id: 'safety-intro', kind: 'intro-with-bubble', revealDist: 1500,
+        title: 'The <span class="blue">Safety</span> of Vaccination',
+        subtitle: 'How many people experienced a <span class="blue">serious adverse effect</span><br>in the placebo group and in the vaccinated group?',
+        bubbles: [
+            'Serious adverse effects refer to severe outcomes such as death, life-threatening conditions, hospitalisation, disability or permanent damage, congenital anomalies or birth defects, or other important medical events.'
+        ]
     },
     {
         id: 'sfa-1', kind: 'chart', revealDist: 420, bubbleStart: 420, bubbleTravel: STANDARD_BUBBLE_TRAVEL,
         chart: { title: 'Serious Adverse Effect<br>in the <span class="blue">Placebo</span> Group', count: 22, colour: 'purple', mean: 22, hasRange: false },
-        bubbles: ['The study shows that<br>about <span class="purple">22</span> in every 1000 people<br>who do not receive the vaccine<br>had serious adverse events.']
+        bubbles: ['The study shows that about <span class="purple">22</span> in every 1,000 people who did not receive the vaccine had a serious adverse event.']
     },
     {
         id: 'sfa-2', kind: 'chart', bubbleTravel: STANDARD_BUBBLE_TRAVEL,
         chart: { title: 'Serious Adverse Effect<br>in the <span class="blue">Vaccinated</span> Group', count: 23, colour: 'purple', mean: 23, hasRange: false },
+        bubbles: ['The study shows that about <span class="purple">23</span> in every 1,000 people who received the vaccine had a serious adverse event.']
+    },
+    {
+        id: 'sfa-compare', kind: 'compare', revealDist: 2200, bubbleTravel: STANDARD_BUBBLE_TRAVEL,
+        compare: {
+            title: 'The Serious Adverse Effect of Vaccination', colour: 'purple', hasRange: false,
+            hideArrow: true,
+            left: { count: 22, mean: 22 },
+            right: { count: 23, mean: 23 }
+        },
         bubbles: [
-            'The study shows that<br>about <span class="purple">23</span> in every 1000 people<br>who receive the vaccine<br>had serious adverse events.',
-            'But how about uncertainty in the study data?'
+            'For every 1,000 people, the vaccinated group had an average of <span class="purple">1</span> more serious adverse event than the placebo group.',
+            'Overall, the study shows no clear difference<br>between the vaccinated and placebo groups in<br>serious adverse events.'
         ]
     },
     {
-        id: 'sfa-3', kind: 'chart', bubbleTravel: STANDARD_BUBBLE_TRAVEL,
-        chart: { title: 'The Likely Range of Serious Adverse Effect<br>in the <span class="blue">Placebo</span> Group', count: 22, colour: 'purple', rangeStart: 20, rangeEnd: 24, mean: 22, hasRange: true },
-        bubbles: ['The number of people who experience a<br>serious adverse effect in the placebo group is<br>likely to be between about <span class="purple">20</span> and <span class="purple">24</span><br>in every 1000 people.']
+        id: 'decision-intro', kind: 'intro',
+        overlapBefore: 900,
+        title: 'Making a Vaccination <span class="blue">Decision</span>',
+        subtitle: 'How should these study findings be interpreted when making a vaccination decision?'
     },
     {
-        id: 'sfa-4', kind: 'chart', bubbleTravel: STANDARD_BUBBLE_TRAVEL,
-        chart: { title: 'The Likely Range of Serious Adverse Effect<br>in the <span class="blue">Vaccinated</span> Group', count: 23, colour: 'purple', rangeStart: 21, rangeEnd: 26, mean: 23, hasRange: true },
-        bubbles: ['The number of people who experience a<br>serious adverse effect in the vaccinated group<br>is likely to be between about <span class="purple">21</span> and <span class="purple">26</span><br>in every 1000 people.']
-    },
-    {
-        id: 'sfa-5', kind: 'compare', bubbleTravel: STANDARD_BUBBLE_TRAVEL,
-        compare: {
-            title: 'The Serious Adverse Effect of Vaccination', colour: 'purple',
-            arrowFile: 'arrow2.png', arrowAlt: 'An up arrow showing slightly more serious adverse events after vaccination', hideArrow: true,
-            left: { count: 22, rangeStart: 20, rangeEnd: 24, mean: 22 },
-            right: { count: 23, rangeStart: 21, rangeEnd: 26, mean: 23 }
-        },
+        id: 'decision-conclusion', kind: 'bubbles',
+        bubbleSpacing: 1900,
+        bubbleTravel: 2300,
         bubbles: [
-            'For every 1,000 people, the vaccinated group<br>had an average of <span class="purple">1</span> more serious adverse<br>event compared to the placebo group.',
-            'The likely ranges overlapped and were close<br>to each other, at <span class="purple">20 to 24</span> cases<br>in the placebo group and <span class="purple">21 to 26</span> cases<br>in the vaccinated group',
-            'Overall, the study shows no clear difference<br>between the vaccinated and placebo groups in<br>serious adverse events.'
+            'This study found fewer herpes zoster cases after vaccination, while the average numbers of serious adverse events were similar between the two groups.'
+        ]
+    },
+    {
+        id: 'sfa-7', kind: 'closing', bubbleStart: 0,
+        overlapBefore: 720,
+        revealDist: 1800,
+        bgStart: 300,
+        bubbleSpacing: 1900,
+        bubbleTravel: 2200,
+        imageFile: 'own_factors_transparent_highres.png', imageAlt: 'Personal factors for vaccination decision',
+        bubbles: [
+            'However, these findings describe average outcomes in the study population, and the expected benefit varies with personal risk of herpes zoster influenced by age, immune status, and medical history.',
+            'Vaccination decisions can be better informed by weighing the expected benefits, possible harms, and individual context.'
         ]
     },
     {
@@ -3365,6 +2628,21 @@ const SAFETY_SCENE_DEFS = [
 const PAGE_MESSAGE_REVEAL = 1200;  
 const PAGE_MESSAGE_HOLD = 3500;
 
+function getPinnedBackgroundFadeTiming(def, bubbleBase, bubbleSpacing, bubbleTravel, bubbleCount) {
+    const defaultStart = bubbleBase + (bubbleCount > 0
+        ? (((bubbleCount - 1) * bubbleSpacing) + bubbleTravel)
+        : 0);
+    const lastBubbleStart = bubbleBase + (bubbleCount > 0
+        ? ((bubbleCount - 1) * bubbleSpacing)
+        : 0);
+    const start = def.fadeBackgroundWithLastBubble === true && bubbleCount > 0
+        ? lastBubbleStart + (bubbleTravel * clamp(Number(def.backgroundFadeBubbleProgress) || 0.80, 0, 1))
+        : defaultStart;
+    const duration = Math.max(1, Number(def.backgroundFadeDuration) || PAGE_FADE);
+
+    return { start, duration };
+}
+
 function safetyPageDuration(def) {
     if (def.kind === 'message') {
         return PAGE_MESSAGE_REVEAL + PAGE_MESSAGE_HOLD;
@@ -3380,7 +2658,9 @@ function safetyPageDuration(def) {
         return bubbleRun + 400;
     }
     const base = def.bubbleStart !== undefined ? def.bubbleStart : PAGE_REVEAL;
-    return base + bubbleRun + PAGE_FADE;
+    const fadeTiming = getPinnedBackgroundFadeTiming(def, base, bubbleSpacing, bubbleTravel, nB);
+    const bubbleEnd = base + bubbleRun;
+    return Math.max(bubbleEnd, fadeTiming.start + fadeTiming.duration);
 }
 
 function makeSafetyChart(cfg) {
@@ -3428,18 +2708,27 @@ function makeSafetyCompare(cfg) {
     setBox(vs, 906, 105, 108, 108);
     compare.appendChild(vs);
 
+    const hasRange = cfg.hasRange === true;
     const makeSide = (side, sideClass, left) => {
         const sidePlot = makeElement('div', 'side-plot ' + sideClass);
         setBox(sidePlot, left, 245, 830, 520);
-        const dots = makeDotPlot(side.count, cfg.colour, side.rangeStart, side.rangeEnd);
+        const dots = hasRange
+            ? makeDotPlot(side.count, cfg.colour, side.rangeStart, side.rangeEnd)
+            : makeDotPlot(side.count, cfg.colour);
         dots.classList.add('pin-managed-plot');
         sidePlot.appendChild(dots);
-        const mean = makeElement('p', 'mean', `<span class="${cfg.colour}">0~0</span> cases<br>(Mean: <span class="${cfg.colour}">0</span> cases)`);
-        mean.dataset.rangeCountUp = 'true';
-        mean.dataset.rangeStart = String(side.rangeStart);
-        mean.dataset.rangeEnd = String(side.rangeEnd);
+
+        const mean = makeElement('p', 'mean', '');
         mean.dataset.countUp = String(side.mean);
         mean.dataset.colour = cfg.colour;
+        if (hasRange) {
+            mean.dataset.rangeCountUp = 'true';
+            mean.dataset.rangeStart = String(side.rangeStart);
+            mean.dataset.rangeEnd = String(side.rangeEnd);
+            mean.innerHTML = `<span class="${cfg.colour}">0~0</span> cases<br>(Mean: <span class="${cfg.colour}">0</span> cases)`;
+        } else {
+            mean.innerHTML = `Mean: <span class="${cfg.colour}">0</span> cases`;
+        }
         sidePlot.appendChild(mean);
         return sidePlot;
     };
@@ -3456,14 +2745,25 @@ function makeSafetyCompare(cfg) {
     }
 
     compare.appendChild(makeSide(cfg.right, 'pinned-page-compare-right', 1025));
-    compare.appendChild(makeLegend(cfg.colour, 'Case of serious adverse effect', true));
+    compare.appendChild(makeLegend(cfg.colour, cfg.colour === 'red' ? 'Case of herpes zoster' : 'Case of serious adverse effect', hasRange));
     return compare;
+}
+
+function makePinnedStoryCard(html, extraClass) {
+    const className = ['text-card', extraClass || ''].filter(Boolean).join(' ');
+    const card = makeElement('section', className);
+    card.appendChild(makeElement('p', '', html));
+    card.setAttribute('aria-hidden', 'true');
+    return card;
 }
 
 function buildPinnedPageLayer(def) {
     const layer = makeElement('div', 'pinned-page-layer');
     if (def.kind === 'intro') {
         layer.classList.add('pinned-page-layer--decision-intro');
+    }
+    if (def.transparentLayer === true) {
+        layer.classList.add('pinned-page-layer--transparent');
     }
     layer.dataset.sceneId = def.id;
     const content = makeElement('div', 'pinned-page-content');
@@ -3478,15 +2778,22 @@ function buildPinnedPageLayer(def) {
         setBox(compare, 0, 112, 1920, 850);
         content.appendChild(compare);
         def._bgSelector = '.pinned-page-compare';
-    } else if (def.kind === 'intro') {
-        const intro = makeElement('section', 'decision-intro-block');
-        const title = makeElement('h2', 'title section-title decision-intro-title', def.title);
+    } else if (def.kind === 'intro' || def.kind === 'intro-with-bubble') {
+        const introClass = def.kind === 'intro-with-bubble' ? 'decision-intro-block safety-intro-block' : 'decision-intro-block';
+        const intro = makeElement('section', introClass);
+        const titleClass = def.kind === 'intro-with-bubble'
+            ? 'title section-title decision-intro-title safety-intro-title'
+            : 'title section-title decision-intro-title';
+        const subtitleClass = def.kind === 'intro-with-bubble'
+            ? 'subtitle decision-intro-subtitle safety-intro-subtitle'
+            : 'subtitle decision-intro-subtitle';
+        const title = makeElement('h2', titleClass, def.title);
         intro.appendChild(title);
-        const subtitle = makeElement('p', 'subtitle decision-intro-subtitle', def.subtitle);
+        const subtitle = makeElement('p', subtitleClass, def.subtitle);
         intro.appendChild(subtitle);
         setBox(intro, 260, 0, 1400, 1080);
         content.appendChild(intro);
-        def._bgSelector = '.decision-intro-block';
+        def._bgSelector = def.kind === 'intro-with-bubble' ? '.safety-intro-block' : '.decision-intro-block';
     } else if (def.kind === 'closing') {
         const img = document.createElement('img');
         img.className = 'asset pinned-page-illustration';
@@ -3503,7 +2810,7 @@ function buildPinnedPageLayer(def) {
         if (Array.isArray(def.sources) && def.sources.length > 0) {
             const sources = makeElement('aside', 'data-sources');
             sources.setAttribute('aria-label', 'Data sources');
-            sources.appendChild(makeElement('p', 'data-sources-title', 'You can also click on the links below for more information on'));
+            sources.appendChild(makeElement('p', 'data-sources-title', 'You can also click on the links below for more information on.'));
             const list = makeElement('ul', 'data-sources-list');
             def.sources.forEach((source) => {
                 const item = makeElement('li', '');
@@ -3511,6 +2818,7 @@ function buildPinnedPageLayer(def) {
                 link.href = source.url;
                 link.target = '_blank';
                 link.rel = 'noopener noreferrer';
+                link.setAttribute('aria-label', `${source.label} (opens in a new tab)`);
                 item.appendChild(link);
                 list.appendChild(item);
             });
@@ -3522,7 +2830,7 @@ function buildPinnedPageLayer(def) {
     }
 
     (def.bubbles || []).forEach((html, i) => {
-        const card = makeEffectivenessRangePinnedCard(html, 'pinned-page-bubble pinned-page-bubble-' + i);
+        const card = makePinnedStoryCard(html, 'pinned-page-bubble pinned-page-bubble-' + i);
         setBox(card, 464, 0, 993, 301);
         content.appendChild(card);
     });
@@ -3601,8 +2909,24 @@ function revealPinnedCompare(compare, p, layerOpacity) {
     });
 
     const countProgress = clamp((p - 0.50) / 0.42, 0, 1);
-    compare.querySelectorAll('.mean[data-range-count-up]').forEach((mean) => {
-        setScrollTiedRangeCount(mean, parseInt(mean.dataset.rangeStart, 10), parseInt(mean.dataset.rangeEnd, 10), parseInt(mean.dataset.countUp, 10), mean.dataset.colour, countProgress);
+    compare.querySelectorAll('.mean[data-count-up]').forEach((mean) => {
+        if (mean.dataset.rangeCountUp === 'true') {
+            setScrollTiedRangeCount(
+                mean,
+                parseInt(mean.dataset.rangeStart, 10),
+                parseInt(mean.dataset.rangeEnd, 10),
+                parseInt(mean.dataset.countUp, 10),
+                mean.dataset.colour,
+                countProgress
+            );
+        } else {
+            setScrollTiedMeanCount(
+                mean,
+                parseInt(mean.dataset.countUp, 10),
+                mean.dataset.colour,
+                countProgress
+            );
+        }
         mean.style.opacity = opacity.toFixed(3);
     });
 
@@ -3679,17 +3003,27 @@ function updatePinnedPage(def, currentDesignY, progressDesignY) {
     const revealDist = def.revealDist !== undefined ? def.revealDist : PAGE_REVEAL;
     const bubbleSpacing = def.bubbleSpacing !== undefined ? def.bubbleSpacing : PAGE_BUBBLE;
     const bubbleTravel = def.bubbleTravel !== undefined ? def.bubbleTravel : PAGE_BUBBLE;
-    const bgFadeStart = bubbleBase + (nB > 0 ? (((nB - 1) * bubbleSpacing) + bubbleTravel) : 0);
+    const bgFadeTiming = getPinnedBackgroundFadeTiming(def, bubbleBase, bubbleSpacing, bubbleTravel, nB);
+    const bgFadeStart = bgFadeTiming.start;
+    const bgFadeDuration = bgFadeTiming.duration;
 
     if (def.kind !== 'bubbles') {
         const revealP = clamp(scrollDist / revealDist, 0, 1);
         const bg = content.querySelector(def._bgSelector);
-        const bgHold = 1 - clamp((scrollDist - bgFadeStart) / PAGE_FADE, 0, 1);
+        const bgHold = 1 - clamp((scrollDist - bgFadeStart) / bgFadeDuration, 0, 1);
 
         if (def.kind === 'chart') {
             revealPinnedChart(bg, revealP, layerOpacity);
         } else if (def.kind === 'compare') {
             revealPinnedCompare(bg, revealP, layerOpacity);
+        } else if (def.kind === 'intro-with-bubble') {
+            const reveal = smoothStep(0.00, 0.48, revealP);
+            const o = reveal * layerOpacity;
+            if (bg !== null) {
+                bg.style.opacity = o.toFixed(3);
+                bg.style.visibility = o > 0.02 ? 'visible' : 'hidden';
+                bg.style.transform = `translate3d(0, ${lerp(20, 0, reveal).toFixed(1)}px, 0)`;
+            }
         } else if (def.kind === 'closing') {
             const bgStart = def.bgStart || 0;
             const bgRevealP = clamp((scrollDist - bgStart) / revealDist, 0, 1);
@@ -3737,14 +3071,20 @@ function buildSafetyScenes() {
         cursor = def._top + def._pinDuration;
     });
 
-    const msgDef = SAFETY_SCENE_DEFS.find((d) => d.kind === 'message');
-    if (msgDef) {
-        sectionTops.closing = msgDef._top;
+    const safetyDef = SAFETY_SCENE_DEFS.find((d) => d.id === 'safety-intro');
+    if (safetyDef) {
+        sectionTops.safety = safetyDef._top;
     }
 
+    const closingDef = SAFETY_SCENE_DEFS.find((d) => d.kind === 'closing');
+    if (closingDef) {
+        sectionTops.closing = closingDef._top;
+    }
+
+    const msgDef = SAFETY_SCENE_DEFS[SAFETY_SCENE_DEFS.length - 1];
     const designViewport = window.innerHeight / getScale();
-    const messageEnd = msgDef._top + msgDef._pinDuration;
-    const totalDesign = messageEnd + 800 + designViewport;
+    const messageRevealEnd = msgDef._top + PAGE_MESSAGE_REVEAL;
+    const totalDesign = messageRevealEnd + 800 + designViewport;
     const canvas = document.getElementById('canvas');
     const stage = document.getElementById('stage');
     if (canvas !== null) {
@@ -3852,13 +3192,15 @@ function applyResponsiveCardSizing() {
     const selector = [
         '.text-card',
         '.pinned-page-bubble',
-        '.effectiveness-range-pinned-card',
         '.effectiveness-pinned-card'
     ].join(', ');
 
     document.querySelectorAll(selector).forEach(function (card) {
-        card.style.setProperty('width', cardW + 'px', 'important');
-        card.style.setProperty('left', cardLeft + 'px', 'important');
+        const responsiveCardW = cardW;
+        const responsiveCardLeft = Math.round((1920 - responsiveCardW) / 2);
+
+        card.style.setProperty('width', responsiveCardW + 'px', 'important');
+        card.style.setProperty('left', responsiveCardLeft + 'px', 'important');
         card.style.setProperty('font-size', fontPx + 'px', 'important');
         card.style.setProperty('line-height', String(lineHeight), 'important');
         card.style.setProperty('padding', `${paddingY}px ${paddingX}px`, 'important');
@@ -3891,10 +3233,39 @@ function applyResponsiveCardSizing() {
         });
     });
 
+    const introScrollButton = document.getElementById("scrollButton");
+    if (introScrollButton !== null) {
+        if (compact) {
+            const buttonScale = Math.max(0.01, getCumulativeTransformScale(introScrollButton));
+            introScrollButton.style.setProperty("min-height", `${Math.ceil(48 / buttonScale)}px`, "important");
+            introScrollButton.style.setProperty("min-width", `${Math.ceil(160 / buttonScale)}px`, "important");
+            introScrollButton.style.setProperty("padding", `${Math.ceil(10 / buttonScale)}px ${Math.ceil(14 / buttonScale)}px`, "important");
+        } else {
+            introScrollButton.style.removeProperty("min-height");
+            introScrollButton.style.removeProperty("min-width");
+            introScrollButton.style.removeProperty("padding");
+        }
+    }
+
+    document.querySelectorAll('.final-message').forEach((message) => {
+        if (compact) {
+            const messageScale = Math.max(0.01, getCumulativeTransformScale(message));
+            message.style.setProperty(
+                'font-size',
+                `${(MOBILE_CLOSING_MESSAGE_FONT_SIZE / messageScale).toFixed(3)}px`,
+                'important'
+            );
+            message.style.setProperty('line-height', '1.25', 'important');
+        } else {
+            message.style.removeProperty('font-size');
+            message.style.removeProperty('line-height');
+        }
+    });
+
     const dataSources = document.querySelector('.data-sources');
     if (dataSources !== null) {
-        const sourcePhysicalFont = compact ? 7 : 18;
-        const sourcePhysicalTitle = compact ? 8 : 20;
+        const sourcePhysicalFont = compact ? MOBILE_SOURCE_TEXT_FONT_SIZE : 18;
+        const sourcePhysicalTitle = compact ? MOBILE_SOURCE_TITLE_FONT_SIZE : 20;
         dataSources.style.fontSize = compact
             ? Math.round(sourcePhysicalFont / pinScale) + 'px'
             : sourcePhysicalFont + 'px';
@@ -3904,6 +3275,24 @@ function applyResponsiveCardSizing() {
                 ? Math.round(sourcePhysicalTitle / pinScale) + 'px'
                 : sourcePhysicalTitle + 'px';
         }
+
+        dataSources.querySelectorAll('a').forEach((link) => {
+            if (compact) {
+                link.style.display = 'inline-flex';
+                link.style.alignItems = 'center';
+                link.style.justifyContent = 'center';
+                link.style.minHeight = Math.ceil(44 / pinScale) + 'px';
+                link.style.padding = `0 ${Math.ceil(6 / pinScale)}px`;
+                link.style.lineHeight = '1.35';
+            } else {
+                link.style.removeProperty('display');
+                link.style.removeProperty('align-items');
+                link.style.removeProperty('justify-content');
+                link.style.removeProperty('min-height');
+                link.style.removeProperty('padding');
+                link.style.removeProperty('line-height');
+            }
+        });
     }
 }
 
@@ -3920,42 +3309,61 @@ function renderArticle() {
     syncScrollStateToWindow(true);
     updateScrollDrivenScenes(getAnimatedDesignY());
     setupScrollamaState();
-}
 
-window.addEventListener("resize", function () {
-    updateScale();
-    document.querySelectorAll(".dot-plot, .mini-dot-plot").forEach(function (plot) {
-        delete plot.dataset.cachedWidth;
-        delete plot.dataset.cachedHeight;
+    window.requestAnimationFrame(() => {
+        const compact = isMobileLayout();
+        applyMobileLegendSizing(compact);
+        applyMobileFontFloor(compact);
     });
-    applyResponsiveCardSizing();
-    syncScrollStateToWindow(true);
-    updateScrollDrivenScenes(getAnimatedDesignY());
-    if (storyScroller !== null) {
-        storyScroller.resize();
-    }
-});
-if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", function () {
-        updateScale();
-        applyResponsiveCardSizing();
-        if (storyScroller !== null) {
-            storyScroller.resize();
-        }
-    }, { passive: true });
 }
 
-window.addEventListener("orientationchange", function () {
-    window.setTimeout(function () {
+let layoutRefreshRafId = null;
+let resetPlotCacheOnRefresh = false;
+
+function scheduleResponsiveRefresh(resetPlotCache) {
+    resetPlotCacheOnRefresh = resetPlotCacheOnRefresh || Boolean(resetPlotCache);
+
+    if (layoutRefreshRafId !== null) {
+        return;
+    }
+
+    layoutRefreshRafId = window.requestAnimationFrame(() => {
+        layoutRefreshRafId = null;
         updateScale();
+
+        if (resetPlotCacheOnRefresh) {
+            document.querySelectorAll(".dot-plot, .mini-dot-plot").forEach((plot) => {
+                delete plot.dataset.cachedWidth;
+                delete plot.dataset.cachedHeight;
+            });
+        }
+        resetPlotCacheOnRefresh = false;
+
         applyResponsiveCardSizing();
         syncScrollStateToWindow(true);
         updateScrollDrivenScenes(getAnimatedDesignY());
+
         if (storyScroller !== null) {
             storyScroller.resize();
         }
+    });
+}
+
+window.addEventListener("resize", () => {
+    scheduleResponsiveRefresh(true);
+}, { passive: true });
+
+if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", () => {
+        scheduleResponsiveRefresh(false);
+    }, { passive: true });
+}
+
+window.addEventListener("orientationchange", () => {
+    window.setTimeout(() => {
+        scheduleResponsiveRefresh(true);
     }, 120);
-});
+}, { passive: true });
 
 window.addEventListener("load", function () {
     updateScale();
