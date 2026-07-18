@@ -29,7 +29,7 @@ const navSections = [
     {
         key: "disease",
         label: "Disease burden",
-        getTop: () => getSceneNavigationTop(".disease-scrolly", 0)
+        getTop: () => getDiseaseNavigationTop()
     },
     {
         key: "effectiveness",
@@ -56,6 +56,11 @@ function getSceneNavigationTop(selector, visibleOffset) {
     const sceneTop = parseFloat(scene.dataset.absoluteTop || "0");
     const pinOffset = parseFloat(scene.dataset.pinOffset || "0");
     return Math.max(0, sceneTop - pinOffset + (visibleOffset || 0));
+}
+
+function getDiseaseNavigationTop() {
+    const visibleOffset = isMobileLayout() ? 80 : 0;
+    return getSceneNavigationTop(".disease-scrolly", visibleOffset);
 }
 
 function getSafetyNavigationTop() {
@@ -2239,9 +2244,7 @@ function scrollToBurden() {
 
     if (scene !== null) {
         const scale = getScale();
-        const sceneTop = parseFloat(scene.dataset.absoluteTop || "0");
-        const pinOffset = parseFloat(scene.dataset.pinOffset || "0");
-        const targetDesignY = Math.max(0, sceneTop - pinOffset);
+        const targetDesignY = getDiseaseNavigationTop();
         scrollState.targetDesignY = targetDesignY;
         if (prefersReducedMotion) {
             scrollState.currentDesignY = targetDesignY;
