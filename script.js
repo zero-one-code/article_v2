@@ -282,6 +282,14 @@ function updateScale() {
     document.documentElement.style.setProperty("--viewport-width", `${viewportWidth.toFixed(2)}px`);
     document.documentElement.style.setProperty("--viewport-height", `${viewportHeight.toFixed(2)}px`);
 
+    // Match the fixed/mobile hero title's rendered size to the title in the
+    // normal scaled canvas. The two layers use different parent scales.
+    const heroTitleFontSize = 77 * stageScale / Math.max(0.01, pinScale);
+    document.documentElement.style.setProperty(
+        "--hero-title-font-size",
+        `${heroTitleFontSize.toFixed(3)}px`
+    );
+
     document.documentElement.classList.toggle("is-compact", compact);
 
     window.requestAnimationFrame(() => {
@@ -923,7 +931,7 @@ function createDiseasePinLayer() {
     }
 
     const layer = makeElement("div", "disease-pin-layer");
-    const content = makeDiseaseDiagramContent("disease-pin-content", 160, 220, true);
+    const content = makeDiseaseDiagramContent("disease-pin-content", 160, 260, true);
     layer.appendChild(content);
     document.body.appendChild(layer);
     return layer;
@@ -941,7 +949,7 @@ function addDiseaseScrollScene(sectionName, absoluteTop) {
     scene.dataset.pinDuration = String(pinDuration);
     scene.dataset.transitionOutStart = String(transitionOutStart);
 
-    const staticLayer = makeDiseaseDiagramContent("disease-static-layer", 10, 70, false);
+    const staticLayer = makeDiseaseDiagramContent("disease-static-layer", 10, 110, false);
     scene.appendChild(staticLayer);
 
     appendElement(sectionName, scene, 0, absoluteTop, 1920, sceneHeight);
@@ -1027,19 +1035,19 @@ function makeRiskGroupContent(className, titleTop, imageTop, includeCards) {
     const baseImage = document.createElement("img");
     baseImage.className = "risk-base-image";
     baseImage.src = "./assets/people_risk_groups_smooth_highres_transparent.png";
-    baseImage.alt = "Risk groups for shingles: older people, and people with weakened immunity, and people with some chronic diseases.";
-    setBox(baseImage, 210, imageTop, 1500, 750);
+    baseImage.alt = "Risk groups for shingles: older people, people with weakened immunity, and people with some chronic diseases.";
+    setBox(baseImage, 360, imageTop, 1200, 600);
     wrapper.appendChild(baseImage);
 
     if (includeCards) {
         const firstCard = makeRiskCard(
-            "The risk of developing herpes zoster is higher in adults aged 50 and older, and people with weakened immune systems.",
+            "The risk of developing herpes zoster is higher in adults aged 50 and older, people with weakened immune systems.",
             "risk-card-one"
         );
         wrapper.appendChild(firstCard);
 
         const secondCard = makeRiskCard(
-            "Medical conditions such as diabetes, chronic kidney disease, or lung disease may also increase the risk.",
+            "Stress and medical conditions such as diabetes, chronic kidney disease, or lung disease may also increase the risk.",
             "risk-card-two"
         );
         wrapper.appendChild(secondCard);
@@ -1056,7 +1064,7 @@ function createRiskPinLayer() {
     }
 
     const layer = makeElement("div", "risk-pin-layer");
-    const content = makeRiskGroupContent("risk-pin-content", 72, 124, true);
+    const content = makeRiskGroupContent("risk-pin-content", 72, 194, true);
     layer.appendChild(content);
     document.body.appendChild(layer);
     return layer;
@@ -1074,7 +1082,7 @@ function addRiskScrollScene(sectionName, absoluteTop) {
     scene.dataset.pinDuration = String(pinDuration);
     scene.dataset.transitionOutStart = String(transitionOutStart);
 
-    const staticLayer = makeRiskGroupContent("risk-static-layer", 72, 124, false);
+    const staticLayer = makeRiskGroupContent("risk-static-layer", 72, 194, false);
     scene.appendChild(staticLayer);
 
     appendElement(sectionName, scene, 0, absoluteTop, 1920, sceneHeight);
