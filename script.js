@@ -2190,7 +2190,7 @@ function createMobileHeroLayer() {
     const layer = makeElement("div", "mobile-hero-layer");
     const content = makeElement("div", "mobile-hero-content");
     const title = makeElement("h1", "title main-title", "How Effective and Safe is<br>the Herpes Zoster<br>Vaccine?");
-    setBox(title, 455, 399, 1010);
+    setBox(title, 445, 389, 1000);
     content.appendChild(title);
 
     const hint = makeElement("div", "mobile-scroll-hint", "<span class=\"scroll-guide\">Keep scrolling as you read to follow the story.</span><span class=\"scroll-label\">Scroll Down</span><span class=\"scroll-arrow\" aria-hidden=\"true\">↓</span>");
