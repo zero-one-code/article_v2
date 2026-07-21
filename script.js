@@ -923,7 +923,7 @@ function createDiseasePinLayer() {
     }
 
     const layer = makeElement("div", "disease-pin-layer");
-    const content = makeDiseaseDiagramContent("disease-pin-content", 160, 260, true);
+    const content = makeDiseaseDiagramContent("disease-pin-content", 160, 220, true);
     layer.appendChild(content);
     document.body.appendChild(layer);
     return layer;
@@ -941,7 +941,7 @@ function addDiseaseScrollScene(sectionName, absoluteTop) {
     scene.dataset.pinDuration = String(pinDuration);
     scene.dataset.transitionOutStart = String(transitionOutStart);
 
-    const staticLayer = makeDiseaseDiagramContent("disease-static-layer", 10, 110, false);
+    const staticLayer = makeDiseaseDiagramContent("disease-static-layer", 10, 70, false);
     scene.appendChild(staticLayer);
 
     appendElement(sectionName, scene, 0, absoluteTop, 1920, sceneHeight);
