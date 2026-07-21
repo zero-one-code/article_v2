@@ -1039,7 +1039,7 @@ function makeRiskGroupContent(className, titleTop, imageTop, includeCards) {
         wrapper.appendChild(firstCard);
 
         const secondCard = makeRiskCard(
-            "Stress and medical conditions such as diabetes, chronic kidney disease, or lung disease may also increase the risk.",
+            "Medical conditions such as diabetes, chronic kidney disease, or lung disease may also increase the risk.",
             "risk-card-two"
         );
         wrapper.appendChild(secondCard);
