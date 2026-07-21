@@ -287,7 +287,6 @@ function updateScale() {
     window.requestAnimationFrame(() => {
         applyMobileLegendSizing(compact);
         applyMobileFontFloor(compact);
-        updateDiseaseTitleImageGap();
     });
 }
 
@@ -884,7 +883,7 @@ function makeDiseaseCard(html, className) {
     return card;
 }
 
-function makeDiseaseDiagramContent(className, titleTop, includeCards) {
+function makeDiseaseDiagramContent(className, titleTop, imageTop, includeCards) {
     const wrapper = makeElement("div", className);
 
     const title = makeElement("h2", "title question-title disease-title", "What is herpes zoster?");
@@ -892,21 +891,11 @@ function makeDiseaseDiagramContent(className, titleTop, includeCards) {
     setBox(title, 500, titleTop, 920);
     wrapper.appendChild(title);
 
-    // Keep the visible artwork exactly 16px below the title.
-    // The original PNG included transparent padding, so a tightly cropped asset is used.
-    const sharedTitleSize = parseFloat(
-        getComputedStyle(document.documentElement)
-            .getPropertyValue("--primary-page-title-size")
-    ) || 58;
-    const diseaseTitleHeight = sharedTitleSize * 1.15;
-    const diseaseImageGap = 16;
-    const diseaseImageTop = Math.round(titleTop + diseaseTitleHeight + diseaseImageGap);
-
     const baseImage = document.createElement("img");
     baseImage.className = "disease-base-image";
-    baseImage.src = "./assets/shingles_diagram_cropped.png";
+    baseImage.src = "./assets/shingles_diagram_transparent_highres.png";
     baseImage.alt = "Shingles symptoms diagram showing pain, blistering rash, persistent neuralgia, and complications.";
-    setBox(baseImage, 519, diseaseImageTop, 875, 564);
+    setBox(baseImage, 435, imageTop, 1050, 689);
     wrapper.appendChild(baseImage);
 
     if (includeCards) {
@@ -926,21 +915,6 @@ function makeDiseaseDiagramContent(className, titleTop, includeCards) {
     return wrapper;
 }
 
-function updateDiseaseTitleImageGap() {
-    document.querySelectorAll(".disease-static-layer, .disease-pin-content").forEach((wrapper) => {
-        const title = wrapper.querySelector(".disease-title");
-        const image = wrapper.querySelector(".disease-base-image");
-
-        if (title === null || image === null) {
-            return;
-        }
-
-        const titleTop = parseFloat(title.style.top || "0");
-        const titleHeight = title.offsetHeight;
-        image.style.top = `${Math.round(titleTop + titleHeight + 16)}px`;
-    });
-}
-
 function createDiseasePinLayer() {
     const existingLayer = document.querySelector(".disease-pin-layer");
 
@@ -949,7 +923,7 @@ function createDiseasePinLayer() {
     }
 
     const layer = makeElement("div", "disease-pin-layer");
-    const content = makeDiseaseDiagramContent("disease-pin-content", 160, true);
+    const content = makeDiseaseDiagramContent("disease-pin-content", 160, 220, true);
     layer.appendChild(content);
     document.body.appendChild(layer);
     return layer;
@@ -967,7 +941,7 @@ function addDiseaseScrollScene(sectionName, absoluteTop) {
     scene.dataset.pinDuration = String(pinDuration);
     scene.dataset.transitionOutStart = String(transitionOutStart);
 
-    const staticLayer = makeDiseaseDiagramContent("disease-static-layer", 10, false);
+    const staticLayer = makeDiseaseDiagramContent("disease-static-layer", 10, 70, false);
     scene.appendChild(staticLayer);
 
     appendElement(sectionName, scene, 0, absoluteTop, 1920, sceneHeight);
@@ -1053,19 +1027,19 @@ function makeRiskGroupContent(className, titleTop, imageTop, includeCards) {
     const baseImage = document.createElement("img");
     baseImage.className = "risk-base-image";
     baseImage.src = "./assets/people_risk_groups_smooth_highres_transparent.png";
-    baseImage.alt = "Risk groups for shingles: older people, people with weakened immunity, and people with some chronic diseases.";
-    setBox(baseImage, 360, imageTop, 1200, 600);
+    baseImage.alt = "Risk groups for shingles: older people, and people with weakened immunity, and people with some chronic diseases.";
+    setBox(baseImage, 210, imageTop, 1500, 750);
     wrapper.appendChild(baseImage);
 
     if (includeCards) {
         const firstCard = makeRiskCard(
-            "The risk of developing herpes zoster is higher in adults aged 50 and older, people with weakened immune systems.",
+            "The risk of developing herpes zoster is higher in adults aged 50 and older, and people with weakened immune systems.",
             "risk-card-one"
         );
         wrapper.appendChild(firstCard);
 
         const secondCard = makeRiskCard(
-            "Stress and medical conditions such as diabetes, chronic kidney disease, or lung disease may also increase the risk.",
+            "Medical conditions such as diabetes, chronic kidney disease, or lung disease may also increase the risk.",
             "risk-card-two"
         );
         wrapper.appendChild(secondCard);
@@ -1082,7 +1056,7 @@ function createRiskPinLayer() {
     }
 
     const layer = makeElement("div", "risk-pin-layer");
-    const content = makeRiskGroupContent("risk-pin-content", 72, 194, true);
+    const content = makeRiskGroupContent("risk-pin-content", 72, 124, true);
     layer.appendChild(content);
     document.body.appendChild(layer);
     return layer;
@@ -1100,7 +1074,7 @@ function addRiskScrollScene(sectionName, absoluteTop) {
     scene.dataset.pinDuration = String(pinDuration);
     scene.dataset.transitionOutStart = String(transitionOutStart);
 
-    const staticLayer = makeRiskGroupContent("risk-static-layer", 72, 194, false);
+    const staticLayer = makeRiskGroupContent("risk-static-layer", 72, 124, false);
     scene.appendChild(staticLayer);
 
     appendElement(sectionName, scene, 0, absoluteTop, 1920, sceneHeight);
@@ -3343,7 +3317,6 @@ function renderArticle() {
         const compact = isMobileLayout();
         applyMobileLegendSizing(compact);
         applyMobileFontFloor(compact);
-        updateDiseaseTitleImageGap();
     });
 }
 
