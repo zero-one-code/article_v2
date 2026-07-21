@@ -534,7 +534,7 @@ body {
     width: 1920px;
     height: 1080px;
     overflow: visible;
-    transform: translateX(-50%) scale(var(--scale));
+    transform: translateX(-50%) scale(var(--pin-scale));
     transform-origin: top center;
     opacity: 0;
     contain: layout style;
