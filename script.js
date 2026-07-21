@@ -1064,7 +1064,7 @@ function createRiskPinLayer() {
     }
 
     const layer = makeElement("div", "risk-pin-layer");
-    const content = makeRiskGroupContent("risk-pin-content", 72, 194, true);
+    const content = makeRiskGroupContent("risk-pin-content", 72, 120, true);
     layer.appendChild(content);
     document.body.appendChild(layer);
     return layer;
@@ -1082,7 +1082,7 @@ function addRiskScrollScene(sectionName, absoluteTop) {
     scene.dataset.pinDuration = String(pinDuration);
     scene.dataset.transitionOutStart = String(transitionOutStart);
 
-    const staticLayer = makeRiskGroupContent("risk-static-layer", 72, 194, false);
+    const staticLayer = makeRiskGroupContent("risk-static-layer", 72, 120, false);
     scene.appendChild(staticLayer);
 
     appendElement(sectionName, scene, 0, absoluteTop, 1920, sceneHeight);
