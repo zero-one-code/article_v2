@@ -241,6 +241,12 @@ function getMatchedPinTopForScale(pinOffset, staticY, pinnedY, targetScale) {
     return (pinOffset * stageScale) + (staticY * stageScale) - (pinnedY * targetScale);
 }
 
+function getMatchedStaticPinTop(pinOffset, staticY, pinnedY) {
+    const stageScale = getScale();
+    const pinScale = getPinScale();
+    return (pinOffset * stageScale) + (staticY * pinScale) - (pinnedY * pinScale);
+}
+
 function addReveal(element, variant) {
     if (prefersReducedMotion) {
         element.classList.add("is-visible");
@@ -278,6 +284,10 @@ function updateScale() {
 
     document.documentElement.style.setProperty("--scale", stageScale.toFixed(5));
     document.documentElement.style.setProperty("--pin-scale", pinScale.toFixed(5));
+    document.documentElement.style.setProperty(
+        "--static-pin-ratio",
+        (pinScale / Math.max(0.01, stageScale)).toFixed(5)
+    );
     document.documentElement.style.setProperty("--pin-offset-y", `${pinOffsetY.toFixed(2)}px`);
     document.documentElement.style.setProperty("--viewport-width", `${viewportWidth.toFixed(2)}px`);
     document.documentElement.style.setProperty("--viewport-height", `${viewportHeight.toFixed(2)}px`);
@@ -908,13 +918,13 @@ function makeDiseaseDiagramContent(className, titleTop, imageTop, includeCards) 
 
     if (includeCards) {
         const firstCard = makeDiseaseCard(
-            "Herpes zoster, also known as shingles, is caused<br>by the same virus that causes chickenpox. After a<br>person has chickenpox, the virus stays inactive in<br>the nerve cells for many years",
+            "<span class=\"grey\">Herpes zoster, also known as shingles, is</span> caused<br>by the same virus that causes chickenpox.<br><span class=\"grey\">After a person has chickenpox, the virus stays</span> inactive in the nerve cells<span class=\"grey\">, and occurs when the virus</span> reactivates later in life.",
             "disease-card-one"
         );
         wrapper.appendChild(firstCard);
 
         const secondCard = makeDiseaseCard(
-            "It can cause severe pain and a blistering rash. Persistent, often debilitating nerve pain may persist after the rash heals, making it very uncomfortable and affecting one’s daily life. Complications such as vision damage and encephalitis may also remain.",
+            "<span class=\"grey\">It can cause severe</span> pain and a blistering rash. Persistent, often debilitating nerve pain <span class=\"grey\">may persist after the rash heals, making it very uncomfortable and affecting one’s daily life. </span>Complications such as vision damage and encephalitis<span class=\"grey\"> may also remain.</span>",
             "disease-card-two"
         );
         wrapper.appendChild(secondCard);
@@ -931,7 +941,7 @@ function createDiseasePinLayer() {
     }
 
     const layer = makeElement("div", "disease-pin-layer");
-    const content = makeDiseaseDiagramContent("disease-pin-content", 160, 260, true);
+    const content = makeDiseaseDiagramContent("disease-pin-content", 10, 110, true);
     layer.appendChild(content);
     document.body.appendChild(layer);
     return layer;
@@ -958,7 +968,7 @@ function addDiseaseScrollScene(sectionName, absoluteTop) {
 }
 
 function setDiseaseCardScrollPosition(card, progress) {
-    setVaccineCardScrollPosition(card, progress, MOTION.speechStartY, -260);
+    setVaccineCardScrollPosition(card, progress, MOTION.speechStartY, -470);
 }
 
 function updateDiseaseScrolly(currentDesignY) {
@@ -981,8 +991,12 @@ function updateDiseaseScrolly(currentDesignY) {
     const isPinned = getScenePinnedState(currentDesignY, pinStart, pinEnd);
     const transitionProgress = smoothStep(transitionOutStart, 0.93, overallProgress);
     const contentOpacity = isPinned ? (1 - transitionProgress) : 0;
+    const sceneBottom = sceneTop + parseFloat(scene.dataset.sceneHeight || "0");
+    const shouldKeepStaticHidden = currentDesignY >= pinStart && currentDesignY < sceneBottom;
     const staticLayer = scene.querySelector(".disease-static-layer");
     const content = pinLayer.querySelector(".disease-pin-content");
+    const diseaseTitle = pinLayer.querySelector(".disease-title");
+    const diseaseImage = pinLayer.querySelector(".disease-base-image");
     const firstCard = pinLayer.querySelector(".disease-card-one");
     const secondCard = pinLayer.querySelector(".disease-card-two");
 
@@ -995,16 +1009,34 @@ function updateDiseaseScrolly(currentDesignY) {
             content.style.top = `${Math.round(getPinOffsetY())}px`;
             content.style.transform = "translate3d(-50%, 0, 0) scale(var(--pin-scale))";
         } else {
-            const diseaseScale = getScale();
-            content.style.top = `${Math.round(getMatchedPinTopForScale(pinOffset, 10, 160, diseaseScale))}px`;
-            content.style.transform = "translateX(-50%) scale(var(--scale))";
+            content.style.top =
+                `${Math.round(
+                    getMatchedStaticPinTop(
+                        pinOffset,
+                        10,
+                        10
+                    )
+                )}px`;
+
+            content.style.transform =
+                "translate3d(-50%, 0, 0) scale(var(--pin-scale))";
         }
         content.style.opacity = contentOpacity.toFixed(3);
-        content.style.filter = `blur(${diseaseBlur.toFixed(2)}px)`;
+        content.style.filter = "none";
+
+        if (diseaseTitle !== null) {
+            diseaseTitle.style.filter = `blur(${diseaseBlur.toFixed(2)}px)`;
+        }
+        if (diseaseImage !== null) {
+            diseaseImage.style.filter = `blur(${diseaseBlur.toFixed(2)}px)`;
+            diseaseImage.style.transform = `scale(${getMobileBackgroundScale().toFixed(4)})`;
+            diseaseImage.style.transformOrigin = "center center";
+        }
     }
 
     if (staticLayer !== null) {
-        staticLayer.classList.toggle("is-hidden", isPinned);
+        staticLayer.classList.toggle("is-hidden", shouldKeepStaticHidden);
+        staticLayer.style.opacity = shouldKeepStaticHidden ? "0" : "1";
     }
 
     if (firstCard !== null) {
@@ -1035,19 +1067,19 @@ function makeRiskGroupContent(className, titleTop, imageTop, includeCards) {
     const baseImage = document.createElement("img");
     baseImage.className = "risk-base-image";
     baseImage.src = "./assets/people_risk_groups_smooth_highres_transparent.png";
-    baseImage.alt = "Risk groups for shingles: older people, people with weakened immunity, and people with some chronic diseases.";
+    baseImage.alt = "The risk of developing herpes zoster is higher in adults aged 50 and older, and people with weakened immune systems.";
     setBox(baseImage, 360, imageTop, 1200, 787);
     wrapper.appendChild(baseImage);
 
     if (includeCards) {
         const firstCard = makeRiskCard(
-            "The risk of developing herpes zoster is higher in adults aged 50 and older, people with weakened immune systems.",
+            "<span class=\"grey\">The risk of developing herpes zoster is</span> higher in adults aged 50 and older, and people with weakened immune systems.",
             "risk-card-one"
         );
         wrapper.appendChild(firstCard);
 
         const secondCard = makeRiskCard(
-            "Stress and medical conditions such as diabetes, chronic kidney disease, or lung disease may also increase the risk.",
+            "Medical conditions such as diabetes, chronic kidney disease, or lung disease<span class=\"grey\"> may also increase the risk.</span>",
             "risk-card-two"
         );
         wrapper.appendChild(secondCard);
@@ -1091,7 +1123,7 @@ function addRiskScrollScene(sectionName, absoluteTop) {
 }
 
 function setRiskCardScrollPosition(card, progress) {
-    setVaccineCardScrollPosition(card, progress, MOTION.speechStartY, -340);
+    setVaccineCardScrollPosition(card, progress, MOTION.speechStartY, -470);
 }
 
 function updateRiskScrolly(currentDesignY) {
@@ -1167,7 +1199,7 @@ function updateRiskScrolly(currentDesignY) {
         const incomingBlur = lerp(5.5, 0, Math.min(riskHandoffOpacity, riskFadeIn));
         content.style.top = isMobileLayout()
             ? `${Math.round(getPinOffsetY())}px`
-            : `${Math.round(getMatchedPinTop(pinOffset, 72, 72))}px`;
+            : `${Math.round(getMatchedStaticPinTop(pinOffset, 72, 72))}px`;
         content.style.opacity = riskOpacity.toFixed(3);
         content.style.transform = `translate3d(-50%, ${enterY + exitY}px, 0) scale(var(--pin-scale))`;
 
@@ -1276,20 +1308,20 @@ function createVaccinePinLayer() {
     content.appendChild(plots);
 
     const sourceCard = makeVaccineCard(
-        "Here, we walk through data from several studies on the effectiveness and safety of the herpes zoster vaccine in adults aged 60 years and older over a period of 3.1 years.",
+        "<span class=\"grey\">Here, we</span> walk through study data on the effectiveness and safety of the herpes zoster vaccine<span class=\"grey\"> in adults aged 60 years and older over a period of 3.1 years.</span>",
         "vaccine-card-source",
         "Source: Cochrane Database of Systematic reviews (2023)"
     );
     content.appendChild(sourceCard);
 
     const comparisonCard = makeVaccineCard(
-        "This data compares the number of herpes zoster cases and serious adverse effects between the vaccine group and the placebo group who did not receive the actual vaccine but were given a harmless substance.",
+        "<span class=\"grey\">This data</span> compares the number of herpes zoster cases<span class=\"grey\"> and</span> serious adverse events between the vaccine group and the placebo group<span class=\"grey\"> who did not receive the actual vaccine but were given a harmless substance.</span>",
         "vaccine-card-comparison"
     );
     content.appendChild(comparisonCard);
 
     const comparisonDetailCard = makeVaccineCard(
-        "The clinical trial findings are shown as the number of people affected per 1000 participants, to facilitate comparison between the vaccine and placebo groups.",
+        "<span class=\"grey\">The clinical trial findings are</span> shown as the number of people affected per 1000 participants<span class=\"grey\">, to facilitate comparison between the vaccine and placebo groups.</span>",
         "vaccine-card-detail"
     );
     content.appendChild(comparisonDetailCard);
@@ -1541,14 +1573,14 @@ function createEffectivenessPinLayer() {
     content.appendChild(placeboChart);
 
     const placeboCard = makeEffectivenessPinnedCard(
-        "The study suggests that among people who do not receive the vaccine, about <span class=\"red\">33</span> per 1000 may develop herpes zoster.",
+        "<span class=\"grey\">The study suggests that</span> among people who do not receive the vaccine, about <span class=\"red\">33</span> per 1000<span class=\"grey\"> developed herpes zoster.</span>",
         "effectiveness-placebo-card"
     );
     content.appendChild(placeboCard);
 
 
     const vaccinatedCard = makeEffectivenessPinnedCard(
-        "It was estimated that about <span class=\"red\">16</span> out of every 1000 people who receive the vaccine would develop herpes zoster.",
+        "<span class=\"grey\">It was estimated that</span> about <span class=\"red\">16</span> out of every 1000 people who receive the vaccine<span class=\"grey\"> developed herpes zoster.</span>",
         "effectiveness-vaccinated-card"
     );
     content.appendChild(vaccinatedCard);
@@ -2558,39 +2590,39 @@ const SAFETY_SCENE_DEFS = [
             right: { count: 16, mean: 16 }
         },
         bubbles: [
-            'So for every 1,000 people, vaccination reduced an average of <span class="red">17</span> herpes zoster cases compared to the placebo group.',
-            'Overall, this study shows that the herpes zoster vaccine appears to prevent the risk of developing it.'
+            'So for every 1,000 people, vaccination reduced an average of <span class="red">17</span> herpes zoster cases <span class="grey">compared to the placebo group.</span>',
+            '<span class="grey">Overall, this study shows that</span> the herpes zoster vaccine appears to prevent the risk of developing it.'
         ]
     },
     {
         id: 'safety-intro', kind: 'intro-with-bubble', revealDist: 1500,
         title: 'The <span class="blue">Safety</span> of Vaccination',
-        subtitle: 'How many people experienced a <span class="blue">serious adverse effect</span><br>in the placebo group and in the vaccinated group?',
+        subtitle: 'How many people experienced a <span class="blue">serious adverse event</span><br>in the placebo group and in the vaccinated group?',
         bubbles: [
-            'Serious adverse effects refer to severe outcomes such as death, life-threatening conditions, hospitalisation, disability or permanent damage, congenital anomalies or birth defects, or other important medical events.'
+            'Serious adverse events refer to severe outcomes such as death, life-threatening conditions, <span class="grey">hospitalisation, disability or permanent damage, congenital anomalies/birth defects, required intervention to prevent permanent impairment or damage, </span>or other important medical events.'
         ]
     },
     {
         id: 'sfa-1', kind: 'chart', revealDist: 420, bubbleStart: 420, bubbleTravel: STANDARD_BUBBLE_TRAVEL,
-        chart: { title: 'Serious Adverse Effect<br>in the <span class="blue">Placebo</span> Group', count: 22, colour: 'purple', mean: 22, hasRange: false },
-        bubbles: ['The study shows that about <span class="purple">22</span> in every 1,000 people who did not receive the vaccine had a serious adverse event.']
+        chart: { title: 'Serious Adverse Event<br>in the <span class="blue">Placebo</span> Group', count: 22, colour: 'purple', mean: 22, hasRange: false },
+        bubbles: ['<span class="grey">The study shows that</span> about <span class="purple">22</span> in every 1,000 people<br>who did not receive the vaccine<span class="grey"> would experience serious adverse events.</span>']
     },
     {
         id: 'sfa-2', kind: 'chart', bubbleTravel: STANDARD_BUBBLE_TRAVEL,
-        chart: { title: 'Serious Adverse Effect<br>in the <span class="blue">Vaccinated</span> Group', count: 23, colour: 'purple', mean: 23, hasRange: false },
-        bubbles: ['The study shows that about <span class="purple">23</span> in every 1,000 people who received the vaccine had a serious adverse event.']
+        chart: { title: 'Serious Adverse Event<br>in the <span class="blue">Vaccinated</span> Group', count: 23, colour: 'purple', mean: 23, hasRange: false },
+        bubbles: ['<span class="grey">The study shows that</span> about <span class="purple">23</span> in every 1,000 people who receive the vaccine <span class="grey">likely experience serious adverse events.</span>']
     },
     {
         id: 'sfa-compare', kind: 'compare', revealDist: 2200, bubbleTravel: STANDARD_BUBBLE_TRAVEL,
         compare: {
-            title: 'The Serious Adverse Effect of Vaccination', colour: 'purple', hasRange: false,
+            title: 'The Serious Adverse Event of Vaccination', colour: 'purple', hasRange: false,
             hideArrow: true,
             left: { count: 22, mean: 22 },
             right: { count: 23, mean: 23 }
         },
         bubbles: [
-            'For every 1,000 people, the vaccinated group had an average of <span class="purple">1</span> more serious adverse event than the placebo group.',
-            'Overall, the study shows no clear difference<br>between the vaccinated and placebo groups in<br>serious adverse events.'
+            'So for every 1,000 people, the vaccinated group<br>had an average of <span class="purple">1</span> more serious adverse<br>event <span class="grey">compared to the placebo group.</span>',
+            '<span class="grey">Overall, the study shows</span> no clear difference<br>between the vaccinated and placebo groups in<br>serious adverse events.'
         ]
     },
     {
@@ -2604,7 +2636,7 @@ const SAFETY_SCENE_DEFS = [
         bubbleSpacing: 1900,
         bubbleTravel: 2300,
         bubbles: [
-            'This study found fewer herpes zoster cases after vaccination, while the average numbers of serious adverse events were similar between the two groups.'
+            '<span class="grey">This study shows</span> vaccination prevented the occurrence of herpes zoster, <span class="grey">while there was</span> no clear evidence of a difference in serious adverse events between groups.'
         ]
     },
     {
@@ -2616,8 +2648,8 @@ const SAFETY_SCENE_DEFS = [
         bubbleTravel: 2200,
         imageFile: 'own_factors_transparent_highres.png', imageAlt: 'Personal factors for vaccination decision',
         bubbles: [
-            'However, these findings describe average outcomes in the study population, and the expected benefit varies with personal risk of herpes zoster influenced by age, immune status, and medical history.',
-            'Vaccination decisions can be better informed by weighing the expected benefits, possible harms, and individual context.'
+            '<span class="grey">However, these findings describe</span> average outcomes in the study population, and the expected benefit varies with personal risk of herpes zoster <span class="grey">influenced by age, immune status, medical history.</span>',
+            '<span class="grey">Therefore, vaccination decisions can be better informed by</span> weighing the expected benefits, possible harms, and individual context.'
         ]
     },
     {
@@ -2696,7 +2728,7 @@ function makeSafetyChart(cfg) {
         mean.innerHTML = `Mean: <span class="${cfg.colour}">0</span> cases`;
     }
     chart.appendChild(mean);
-    chart.appendChild(makeLegend(cfg.colour, 'Case of serious adverse effect', !!cfg.hasRange));
+    chart.appendChild(makeLegend(cfg.colour, 'Case of serious adverse event', !!cfg.hasRange));
     return chart;
 }
 
@@ -2756,7 +2788,7 @@ function makeSafetyCompare(cfg) {
     }
 
     compare.appendChild(makeSide(cfg.right, 'pinned-page-compare-right', 1025));
-    compare.appendChild(makeLegend(cfg.colour, cfg.colour === 'red' ? 'Case of herpes zoster' : 'Case of serious adverse effect', hasRange));
+    compare.appendChild(makeLegend(cfg.colour, cfg.colour === 'red' ? 'Case of herpes zoster' : 'Case of serious adverse event', hasRange));
     return compare;
 }
 
