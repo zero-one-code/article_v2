@@ -2622,7 +2622,7 @@ const SAFETY_SCENE_DEFS = [
         },
         bubbles: [
             'So for every 1,000 people, the vaccinated group<br>had an average of <span class="purple">1</span> more serious adverse<br>event <span class="grey">compared to the placebo group.</span>',
-            '<span class="grey">Overall, the study shows</span> no clear difference<br>between the vaccinated and placebo groups in<br>serious adverse events.'
+            '<span class="grey">This indicates</span> no clear difference<br>between the vaccinated and placebo groups in<br>serious adverse events.'
         ]
     },
     {
