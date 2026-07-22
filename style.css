@@ -4,9 +4,11 @@
 :root {
   --scale: 1;
   --pin-scale: 1;
+  --static-pin-ratio: 1;
   --pin-offset-y: 0px;
   --ink: #121212;
   --blue: #0073c3;
+  --grey: #949398;
   --red: #d52935;
   --purple: #560aef;
   --grey-dot: #d7d7d7;
@@ -98,7 +100,7 @@ body {
   line-height: 1.15;
 }
 .main-title {
-  font-size: 70px;
+  font-size: 77px;
   line-height: 1.16;
   letter-spacing: -1px;
 }
@@ -118,6 +120,9 @@ body {
 }
 .blue {
   color: var(--blue);
+}
+.grey {
+  color: var(--grey);
 }
 .red {
   color: var(--red);
@@ -386,7 +391,11 @@ body {
   overflow: visible;
   pointer-events: none;
   opacity: 1;
-}
+
+  transform: scale(var(--static-pin-ratio));
+  transform-origin: top center;
+  will-change: opacity, transform;
+  backface-visibility: hidden;}
 .disease-static-layer.is-hidden {
   opacity: 0;
 }
@@ -427,7 +436,7 @@ body {
   width: 1920px;
   height: 1080px;
   overflow: visible;
-  transform: translateX(-50%) scale(var(--scale));
+  transform: translate3d(-50%, 0, 0) scale(var(--pin-scale));
   transform-origin: top center;
   opacity: 0;
   contain: layout style;
@@ -437,6 +446,7 @@ body {
 .disease-title {
   font-size: 51px;
   z-index: 2;
+  will-change: opacity, transform, filter;
 }
 .disease-base-image {
   position: absolute;
@@ -447,7 +457,8 @@ body {
   z-index: 1;
   transform: translateZ(0);
   backface-visibility: hidden;
-}
+
+  will-change: opacity, transform, filter;}
 .disease-card {
   left: 340px;
   top: 0;
@@ -747,7 +758,11 @@ body {
   overflow: visible;
   pointer-events: none;
   opacity: 1;
-}
+
+  transform: scale(var(--static-pin-ratio));
+  transform-origin: top center;
+  will-change: opacity, transform;
+  backface-visibility: hidden;}
 .risk-static-layer.is-hidden {
   opacity: 0;
 }
